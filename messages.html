@@ -331,7 +331,28 @@
             <!-- Messages Header -->
             <div class="messages-header">
                 <h1>Messages</h1>
-                <div class="message-actions">
+
+                <!-- Page controls: mobile menu and desktop action area -->
+                <div class="page-controls">
+                    <button class="page-menu-btn mobile-only" id="messagesMenuBtn" onclick="toggleMessagesMenu()" aria-expanded="false" title="Menu">
+                        <i class="fas fa-ellipsis-v"></i>
+                    </button>
+                    <div class="page-menu" id="messagesMenu" aria-hidden="true">
+                        <button onclick="composeNewMessage()"><i class="fas fa-plus"></i> New Message</button>
+                        <button onclick="refreshMessages()"><i class="fas fa-sync-alt"></i> Refresh</button>
+                        <div class="message-filters">
+                            <select id="messageFilterMobile">
+                                <option value="all">All Messages</option>
+                                <option value="unread">Unread Only</option>
+                                <option value="read">Read Only</option>
+                                <option value="today">Today</option>
+                                <option value="week">This Week</option>
+                            </select>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="message-actions desktop-only">
                     <button class="btn-primary" onclick="composeNewMessage()">
                         <i class="fas fa-plus"></i> New Message
                     </button>
@@ -387,6 +408,9 @@
                     <div class="active-conversation" id="activeConversationView" style="display: none;">
                         <!-- Conversation Header -->
                         <div class="conversation-header">
+                            <button class="mobile-back-btn" id="mobileBackBtn" onclick="closeConversationView()" title="Back" aria-label="Back">
+                                <i class="fas fa-chevron-left"></i>
+                            </button>
                             <div class="conversation-partner">
                                 <div class="partner-avatar">
                                     <img id="partnerAvatar" src="after-dark-banner.jpg" alt="User">
@@ -491,7 +515,42 @@
             </div>
         </div>
     </main>
-    
+
+    <!-- Mobile bottom navigation -->
+    <nav class="bottom-nav" role="navigation" aria-label="Mobile navigation">
+        <a href="dashboard.html" class="nav-item" title="Home">
+            <i class="fas fa-home nav-icon"></i>
+            <span>Home</span>
+        </a>
+        <a href="my-profile.html" class="nav-item" title="Profile">
+            <i class="fas fa-user nav-icon"></i>
+            <span>Profile</span>
+        </a>
+        <a href="browse-profiles.html" class="nav-item" title="Browse">
+            <i class="fas fa-users nav-icon"></i>
+            <span>Browse</span>
+        </a>
+        <a href="messages.html" class="nav-item" title="Messages">
+            <i class="fas fa-envelope nav-icon"></i>
+            <span>Messages</span>
+        </a>
+        <a href="settings.html" class="nav-item" title="Settings">
+            <i class="fas fa-cog nav-icon"></i>
+            <span>Settings</span>
+        </a>
+    </nav>
+
+    <script>
+    document.addEventListener('DOMContentLoaded', function(){
+        const path = window.location.pathname.split('/').pop();
+        const items = document.querySelectorAll('.bottom-nav .nav-item');
+        items.forEach(a=>{
+            const href = a.getAttribute('href');
+            if (href && path === href) a.classList.add('active');
+        });
+    });
+    </script>
+
     <!-- Report Modal -->
     <div id="reportModal" class="modal">
         <div class="modal-content">

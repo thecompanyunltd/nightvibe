@@ -339,6 +339,18 @@
                         <button class="btn-primary" onclick="editProfile()">
                             <i class="fas fa-edit"></i> Edit Profile
                         </button>
+                        <button class="btn-secondary" onclick="openPhotoUpload()">
+                            <i class="fas fa-camera"></i> Upload Photos
+                        </button>
+                        <button class="page-menu-btn mobile-only" id="profileMenuBtn" onclick="toggleProfileMenu()" aria-expanded="false" title="Menu">
+                            <i class="fas fa-ellipsis-v"></i>
+                        </button>
+                        <div class="page-menu" id="profileMenu" aria-hidden="true">
+                            <button onclick="editProfile()">Edit Profile</button>
+                            <button onclick="openPhotoUpload()">Upload Photos</button>
+                            <button onclick="window.location.href='view-profile.html'">View Public Profile</button>
+                        </div>
+                        </button>
                         <button class="btn-secondary" onclick="shareProfile()">
                             <i class="fas fa-share-alt"></i> Share
                         </button>
@@ -536,7 +548,42 @@
             </div>
         </div>
     </main>
-    
+
+    <!-- Mobile bottom navigation -->
+    <nav class="bottom-nav" role="navigation" aria-label="Mobile navigation">
+        <a href="dashboard.html" class="nav-item" title="Home">
+            <i class="fas fa-home nav-icon"></i>
+            <span>Home</span>
+        </a>
+        <a href="my-profile.html" class="nav-item" title="Profile">
+            <i class="fas fa-user nav-icon"></i>
+            <span>Profile</span>
+        </a>
+        <a href="browse-profiles.html" class="nav-item" title="Browse">
+            <i class="fas fa-users nav-icon"></i>
+            <span>Browse</span>
+        </a>
+        <a href="messages.html" class="nav-item" title="Messages">
+            <i class="fas fa-envelope nav-icon"></i>
+            <span>Messages</span>
+        </a>
+        <a href="settings.html" class="nav-item" title="Settings">
+            <i class="fas fa-cog nav-icon"></i>
+            <span>Settings</span>
+        </a>
+    </nav>
+
+    <script>
+    document.addEventListener('DOMContentLoaded', function(){
+        const path = window.location.pathname.split('/').pop();
+        const items = document.querySelectorAll('.bottom-nav .nav-item');
+        items.forEach(a=>{
+            const href = a.getAttribute('href');
+            if (href && path === href) a.classList.add('active');
+        });
+    });
+    </script>
+
     <!-- Edit Profile Modal -->
     <div id="editProfileModal" class="modal">
         <div class="modal-content">
@@ -683,6 +730,26 @@
     // Make basic functions available globally
     window.toggleSidebar = toggleSidebar;
     window.logout = logout;
+
+    function toggleProfileMenu() {
+        const btn = document.getElementById('profileMenuBtn');
+        const menu = document.getElementById('profileMenu');
+        if (!menu || !btn) return;
+        const isOpen = menu.classList.toggle('open');
+        btn.setAttribute('aria-expanded', isOpen ? 'true' : 'false');
+    }
+
+    // Close profile menu when clicking outside
+    document.addEventListener('click', function(e) {
+        const profileMenu = document.getElementById('profileMenu');
+        const profileBtn = document.getElementById('profileMenuBtn');
+        if (profileMenu && profileBtn) {
+            if (!profileMenu.contains(e.target) && !profileBtn.contains(e.target)) {
+                profileMenu.classList.remove('open');
+                profileBtn.setAttribute('aria-expanded', 'false');
+            }
+        }
+    });
 </script>
 <script>
     // Immediate click handlers to prevent errors before JS loads

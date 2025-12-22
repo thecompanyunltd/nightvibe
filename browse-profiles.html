@@ -5,20 +5,127 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Browse Profiles</title>
     <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="dashboard.css">
+    <style>
+        /* Browse Profiles specific styles to match dashboard look */
+        /* Make the page use the app's dark visual language */
+        .container {
+            max-width: none;
+            margin: 0 auto;
+            background: transparent;
+            padding: 18px 12px 86px; /* leave room for mobile bottom nav */
+            border-radius: 0;
+            box-shadow: none;
+        }
+
+        header.main-header { display:flex; align-items:center; justify-content:space-between; gap:12px; padding:8px 0; }
+        header.main-header h1 { margin:0; color:var(--text-primary); font-size:20px; }
+        .page-top-nav { display:flex; gap:10px; align-items:center; }
+        .page-top-nav a { display:inline-flex; align-items:center; gap:8px; padding:8px 10px; border-radius:8px; background:transparent; color:var(--text-primary); border:1px solid transparent; text-decoration:none; font-weight:600; }
+        .page-top-nav a:hover { background:var(--card-hover); border-color: rgba(255,255,255,0.03); }
+        .page-top-nav a.active { background:var(--card-bg); border-color: rgba(255,255,255,0.04); }
+
+        .filters { background: transparent; margin: 12px 0 6px; }
+        .filters .filter-grid { display:flex; gap:10px; flex-wrap:wrap; align-items:center; background:var(--card-bg); padding:10px; border-radius:8px; border:1px solid rgba(255,255,255,0.03); }
+        .filters h3 { color:var(--text-primary); margin:0 0 8px 0; }
+        .filter-grid select, .filter-grid .filter-btn, .filter-grid .clear-btn { background:transparent; color:var(--text-primary); border:1px solid rgba(255,255,255,0.06); padding:8px 10px; border-radius:6px; }
+        .filter-grid .filter-btn, .filter-grid .clear-btn { cursor:pointer; }
+
+        /* List-style profiles (stacked vertically for readability) */
+        .profiles-grid {
+            display: grid;
+            grid-template-columns: 1fr;
+            gap: 14px;
+            margin-top: 6px;
+        }
+        .profile-card {
+            background: linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0.01));
+            border-radius: 10px;
+            overflow: hidden;
+            box-shadow: 0 6px 18px rgba(0,0,0,0.35);
+            transition: transform 0.12s ease, box-shadow 0.12s ease;
+            border: 1px solid rgba(255,255,255,0.04);
+            display: grid;
+            grid-template-columns: 120px 1fr;
+            gap: 12px;
+            align-items: center;
+            padding: 10px;
+        }
+        .profile-card:hover { transform: translateY(-4px); box-shadow: 0 10px 24px rgba(0,0,0,0.45); }
+        .profile-photo { width:120px; height:120px; object-fit:cover; display:block; background:#2a2a4a; border-radius:8px; flex-shrink:0; }
+        .profile-body { padding:0; }
+        .profile-body h3 { margin:0; font-size:16px; color:#ffffff !important; }
+        .profile-body p { margin:6px 0 0 0; color:var(--text-muted); font-size:13px; }
+        .profile-actions { display:flex; gap:8px; margin-top:8px; }
+        .profile-actions .btn-small { padding:8px 10px; font-size:13px; }
+
+        /* Make usernames explicitly white for any variant */
+        .profile-card .profile-body h3,
+        .profile-card .profile-info h3,
+        .profile-card .profile-name { color: #ffffff !important; }
+
+        /* Desktop: keep list layout (vertical) for consistency and readability */
+        @media (min-width: 1025px) {
+            /* Use a slightly larger photo and more comfortable spacing on wide screens */
+            .profile-photo { width:160px; height:160px; }
+            .profile-card { padding: 14px; }
+            .profile-body { padding-left: 8px; }
+        }
+
+        /* Page menu for small screens */
+        .page-controls { display:flex; align-items:center; gap:8px; position:relative; }
+        .page-menu { position:absolute; right:0; top:38px; background:var(--card-bg); border:1px solid rgba(255,255,255,0.03); padding:8px; border-radius:6px; display:none; min-width:160px; box-shadow:0 6px 18px rgba(0,0,0,0.35); z-index:10002; }
+        .page-menu.open { display:block; }
+        .page-menu button { display:block; width:100%; text-align:left; background:none;border:none;padding:8px 12px; cursor:pointer; color:var(--text-primary); }
+
+        /* Mobile: collapse filters into togglable panel */
+        .filters { transition: max-height 0.25s ease; }
+        .filters .filter-grid { width:100%; }
+        .filters.collapsed { max-height:0; overflow:hidden; padding:0; }
+
+        @media (max-width: 768px) {
+            /* Keep list layout, adjust photo and spacing */
+            .profiles-grid { grid-template-columns: 1fr; gap:10px; }
+            .profile-photo { width:100px; height:100px; }
+            .filters { margin-bottom: 8px; }
+            .filter-toggle-btn { display:inline-flex; margin-bottom:8px; }
+            .filter-grid { padding:8px; gap:8px; }
+            header.main-header { padding: 8px 0 6px; }
+        }
+
+        @media (max-width: 480px) {
+            /* Very small screens: stack image on top of content for readability */
+            .profile-card { grid-template-columns: 1fr; padding: 0; }
+            .profile-photo { width: 100%; height: 140px; border-radius: 8px; }
+            .profile-body { padding: 12px; }
+            .profile-body h3 { font-size:15px; }
+        }
+    </style>
 </head>
-<body>
+<body class="dashboard-page">
     <div class="container">
         <header class="main-header">
             <h1>Browse Profiles</h1>
-            <nav>
+            <div class="page-top-nav">
                 <a href="dashboard.html">Dashboard</a>
                 <a href="my-profile.html">My Profile</a>
-                <button onclick="logout()" class="logout-btn">Logout</button>
-            </nav>
+                <a href="messages.html">Messages</a>
+            </div>
+            <div class="page-controls">
+                <button class="page-menu-btn mobile-only" id="browseMenuBtn" onclick="toggleBrowseMenu()" aria-expanded="false" title="Menu">
+                    <i class="fas fa-ellipsis-v"></i>
+                </button>
+                <div class="page-menu" id="browseMenu" aria-hidden="true">
+                    <button onclick="window.location.href='dashboard.html'">Dashboard</button>
+                    <button onclick="window.location.href='my-profile.html'">My Profile</button>
+                    <button onclick="window.location.href='messages.html'">Messages</button>
+                    <button onclick="logout()">Logout</button>
+                </div>
+            </div>
         </header>
         
         <div class="filters">
-            <h3>Filter Profiles</h3>
+            <h3>Filter Profiles <button class="filter-toggle-btn mobile-only" id="filterToggleBtn" onclick="toggleFilters()" aria-expanded="false" title="Toggle Filters">Filters</button></h3>
             <div class="filter-grid">
                 <select id="filterAge">
                     <option value="">All Ages</option>
@@ -67,6 +174,74 @@
         </div>
     </div>
     
+    <!-- Mobile bottom navigation -->
+    <nav class="bottom-nav" role="navigation" aria-label="Mobile navigation">
+        <a href="dashboard.html" class="nav-item" title="Home">
+            <i class="fas fa-home nav-icon"></i>
+            <span>Home</span>
+        </a>
+        <a href="my-profile.html" class="nav-item" title="Profile">
+            <i class="fas fa-user nav-icon"></i>
+            <span>Profile</span>
+        </a>
+        <a href="browse-profiles.html" class="nav-item" title="Browse">
+            <i class="fas fa-users nav-icon"></i>
+            <span>Browse</span>
+        </a>
+        <a href="messages.html" class="nav-item" title="Messages">
+            <i class="fas fa-envelope nav-icon"></i>
+            <span>Messages</span>
+        </a>
+        <a href="settings.html" class="nav-item" title="Settings">
+            <i class="fas fa-cog nav-icon"></i>
+            <span>Settings</span>
+        </a>
+    </nav>
+
+    <script>
+    document.addEventListener('DOMContentLoaded', function(){
+        const path = window.location.pathname.split('/').pop();
+        const items = document.querySelectorAll('.bottom-nav .nav-item');
+        items.forEach(a=>{
+            const href = a.getAttribute('href');
+            if (href && path === href) a.classList.add('active');
+        });
+
+        // Menu toggle for small screens
+        window.toggleBrowseMenu = function() {
+            const btn = document.getElementById('browseMenuBtn');
+            const menu = document.getElementById('browseMenu');
+            if (!menu || !btn) return;
+            const isOpen = menu.classList.toggle('open');
+            btn.setAttribute('aria-expanded', isOpen ? 'true' : 'false');
+        };
+
+        // Filters toggle for mobile
+        window.toggleFilters = function() {
+            const btn = document.getElementById('filterToggleBtn');
+            const filters = document.querySelector('.filters');
+            if (!filters) return;
+            const isCollapsed = filters.classList.toggle('collapsed');
+            if (btn) btn.setAttribute('aria-expanded', (!isCollapsed).toString());
+        };
+
+        // Initialize collapsed filters on small screens
+        if (window.innerWidth <= 768) {
+            const filters = document.querySelector('.filters');
+            if (filters) filters.classList.add('collapsed');
+        }
+
+        document.addEventListener('click', function(e) {
+            const menu = document.getElementById('browseMenu');
+            const btn = document.getElementById('browseMenuBtn');
+            if (menu && btn && !menu.contains(e.target) && !btn.contains(e.target)) {
+                menu.classList.remove('open');
+                btn.setAttribute('aria-expanded', 'false');
+            }
+        });
+    });
+    </script>
+
     <!-- Load Firebase v8 SDK FIRST -->
 <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
 <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-auth.js"></script>
