@@ -161,8 +161,11 @@ async function handleLogin(e) {
         
         showNotification('Welcome back!', 'success');
         
-        // Ensure window.currentUser is set immediately and redirect based on profile state
+        // Ensure window.currentUser is set immediately and redirect to dashboard
         window.currentUser = userCredential.user;
+        // Immediate redirect to dashboard after successful login
+        window.location.href = 'dashboard.html';
+        // Still call redirectAfterLogin as a safety net for profile-based routing (admin/upload), but it will usually not run because page navigates.
         redirectAfterLogin(userCredential.user.uid).catch(err => console.warn('Redirect after login failed:', err));
         
         // The auth state change listener will also run and keep state in sync
