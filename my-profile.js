@@ -72,7 +72,7 @@ function displayProfileData() {
     if (profileUsername) profileUsername.textContent = currentProfileData.username || 'User';
     
     // Get first photo URL (handle both string and object formats)
-    let firstPhotoUrl = 'https://via.placeholder.com/150';
+    let firstPhotoUrl = 'after-dark-banner.jpg';
     if (currentProfileData.photos && currentProfileData.photos.length > 0) {
         const firstPhoto = currentProfileData.photos[0];
         firstPhotoUrl = typeof firstPhoto === 'string' ? firstPhoto : firstPhoto.url;
@@ -87,12 +87,36 @@ function displayProfileData() {
     const profileRating = document.getElementById('profileRating');
     const totalMessages = document.getElementById('totalMessages');
     const totalLikes = document.getElementById('totalLikes');
-    
-    if (profileFollowers) profileFollowers.textContent = currentProfileData.followers || 0;
-    if (profileViews) profileViews.textContent = currentProfileData.views || 0;
-    if (profileRating) profileRating.textContent = (currentProfileData.rating || 0).toFixed(1);
-    if (totalMessages) totalMessages.textContent = currentProfileData.totalMessages || 0;
-    if (totalLikes) totalLikes.textContent = currentProfileData.likes || 0;
+
+    function hideOrShowProfileStat(el, value, formatter) {
+        if (!el) return;
+        const card = el.closest('.stat-card') || el.parentElement;
+        const isMissing = value === undefined || value === null || (typeof value === 'string' && (value.trim() === '' || value === '0%'));
+        if (isMissing) {
+            const text = 'Coming soon';
+            if (card) {
+                const valueEl = el;
+                valueEl.textContent = text;
+                valueEl.classList.add('coming-soon');
+                valueEl.setAttribute('title', 'This stat will be available soon');
+            } else {
+                el.textContent = text;
+                el.classList.add('coming-soon');
+                el.setAttribute('title', 'This stat will be available soon');
+            }
+        } else {
+            if (card) card.style.display = '';
+            el.textContent = formatter ? formatter(value) : value;
+            el.classList.remove('coming-soon');
+            el.removeAttribute('title');
+        }
+    }
+
+    hideOrShowProfileStat(profileFollowers, currentProfileData.followers);
+    hideOrShowProfileStat(profileViews, currentProfileData.views);
+    hideOrShowProfileStat(profileRating, currentProfileData.rating, v => v.toFixed ? v.toFixed(1) : v);
+    hideOrShowProfileStat(totalMessages, currentProfileData.totalMessages);
+    hideOrShowProfileStat(totalLikes, currentProfileData.likes);
     
     // Calculate member days
     const memberDays = document.getElementById('memberDays');
@@ -761,7 +785,7 @@ function updateSidebarUserInfo() {
         
         if (userName) userName.textContent = currentProfileData.username || 'User';
         if (userAvatar) {
-            let avatarUrl = 'https://via.placeholder.com/100';
+            let avatarUrl = 'after-dark-banner.jpg';
             if (currentProfileData.photos && currentProfileData.photos.length > 0) {
                 const firstPhoto = currentProfileData.photos[0];
                 avatarUrl = typeof firstPhoto === 'string' ? firstPhoto : firstPhoto.url;

@@ -276,7 +276,167 @@
                     (length > 450 ? 'warning' : length > 495 ? 'error' : '');
             }
         });
-        
+        // Validate Step 1 before proceeding
+function validateStep1() {
+    const username = document.getElementById('username').value.trim();
+    const password = document.getElementById('password').value;
+    const realName = document.getElementById('realName').value.trim();
+    const phone = document.getElementById('phone').value.trim();
+    
+    let isValid = true;
+    let errorMessage = '';
+    
+    // Clear previous error styles
+    document.querySelectorAll('.input-group').forEach(group => {
+        group.classList.remove('error');
+    });
+    
+    // Validate username
+    if (!username) {
+        document.getElementById('username').parentElement.classList.add('error');
+        isValid = false;
+        errorMessage = 'Username is required';
+    } else if (username.length < 3) {
+        document.getElementById('username').parentElement.classList.add('error');
+        isValid = false;
+        errorMessage = 'Username must be at least 3 characters';
+    }
+    
+    // Validate password
+    if (!password) {
+        document.getElementById('password').parentElement.classList.add('error');
+        isValid = false;
+        errorMessage = 'Password is required';
+    } else if (password.length < 6) {
+        document.getElementById('password').parentElement.classList.add('error');
+        isValid = false;
+        errorMessage = 'Password must be at least 6 characters';
+    }
+    
+    // Validate real name
+    if (!realName) {
+        document.getElementById('realName').parentElement.classList.add('error');
+        isValid = false;
+        errorMessage = 'Real name is required';
+    }
+    
+    // Validate phone
+    if (!phone) {
+        document.getElementById('phone').parentElement.classList.add('error');
+        isValid = false;
+        errorMessage = 'Phone number is required';
+    } else if (phone.length < 10) {
+        document.getElementById('phone').parentElement.classList.add('error');
+        isValid = false;
+        errorMessage = 'Please enter a valid phone number';
+    }
+    
+    if (!isValid) {
+        showNotification(errorMessage, 'error');
+        return;
+    }
+    
+    // If all valid, proceed to step 2
+    nextStep(2);
+}
+
+// Submit registration (called from Step 2 button)
+function submitRegistration() {
+    // Manually trigger validation for step 2 fields
+    const age = document.getElementById('age').value;
+    const position = document.getElementById('position').value;
+    const relationshipStatus = document.getElementById('relationshipStatus').value;
+    
+    let isValid = true;
+    let errorMessage = '';
+    
+    // Clear previous error styles
+    document.querySelectorAll('.input-group, .select-group').forEach(group => {
+        group.classList.remove('error');
+    });
+    
+    // Validate age
+    if (!age) {
+        document.getElementById('age').parentElement.classList.add('error');
+        isValid = false;
+        errorMessage = 'Age is required';
+    } else if (age < 18 || age > 65) {
+        document.getElementById('age').parentElement.classList.add('error');
+        isValid = false;
+        errorMessage = 'Age must be between 18 and 65';
+    }
+    
+    // Validate position
+    if (!position) {
+        document.getElementById('position').parentElement.parentElement.classList.add('error');
+        isValid = false;
+        errorMessage = 'Position preference is required';
+    }
+    
+    // Validate relationship status
+    if (!relationshipStatus) {
+        document.getElementById('relationshipStatus').parentElement.parentElement.classList.add('error');
+        isValid = false;
+        errorMessage = 'Relationship status is required';
+    }
+    
+    if (!isValid) {
+        showNotification(errorMessage, 'error');
+        return;
+    }
+    
+    // If all valid, call the existing handleRegistration function
+    const event = { preventDefault: () => {} };
+    handleRegistration(event);
+}
+
+// Update the nextStep and prevStep functions
+function nextStep(step) {
+    // Hide all steps
+    document.querySelectorAll('.form-step').forEach(s => {
+        s.style.display = 'none';
+        s.classList.remove('active');
+    });
+    
+    // Show current step
+    const currentStep = document.getElementById('step' + step);
+    if (currentStep) {
+        currentStep.style.display = 'block';
+        currentStep.classList.add('active');
+    }
+    
+    // Update progress indicator
+    document.querySelectorAll('.progress-step').forEach((el, index) => {
+        if (index < step - 1) {
+            el.classList.add('active');
+        } else {
+            el.classList.remove('active');
+        }
+    });
+}
+
+function prevStep() {
+    nextStep(1);
+}
+
+// Also update the existing togglePassword function to handle errors
+function togglePassword(inputId) {
+    const input = document.getElementById(inputId);
+    const icon = input.nextElementSibling.querySelector('i');
+    
+    if (input.type === 'password') {
+        input.type = 'text';
+        icon.classList.remove('fa-eye');
+        icon.classList.add('fa-eye-slash');
+    } else {
+        input.type = 'password';
+        icon.classList.remove('fa-eye-slash');
+        icon.classList.add('fa-eye');
+    }
+    
+    // Clear error state when user interacts
+    input.parentElement.classList.remove('error');
+}
         // Make functions globally available
         window.switchTab = switchTab;
         window.nextStep = nextStep;

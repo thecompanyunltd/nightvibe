@@ -33,7 +33,6 @@ document.addEventListener('DOMContentLoaded', function() {
         
     } catch (error) {
         console.error('Firebase initialization error:', error);
-        showNotification('Failed to initialize app', 'error');
     }
 });
 
@@ -42,13 +41,47 @@ async function handleAuthStateChange(user) {
     if (user) {
         console.log('User logged in:', user.uid);
         currentUser = user;
+        window.currentUser = user;
         
         try {
             const userDoc = await db.collection("users").doc(user.uid).get();
             
             if (userDoc.exists) {
                 const userData = userDoc.data();
-                
+
+                // Update global sidebar elements (if present on the page)
+                try {
+                    const preferredName = userData.username || user.displayName || user.email || 'User';
+                    const userNameEl = document.getElementById('userName');
+                    const welcomeNameEl = document.getElementById('welcomeName');
+                    const userAvatarEl = document.getElementById('userAvatar');
+
+                    if (userNameEl) userNameEl.textContent = preferredName;
+                    if (welcomeNameEl) welcomeNameEl.textContent = preferredName;
+
+                    if (userAvatarEl) {
+                        let avatar = 'after-dark-banner.jpg';
+                        if (userData.photos && userData.photos.length > 0) {
+                            const first = userData.photos[0];
+                            avatar = typeof first === 'string' ? first : (first.url || first.secure_url || first.src || first.path || avatar);
+                        } else if (user.photoURL) {
+                            avatar = user.photoURL;
+                        }
+                        userAvatarEl.src = avatar;
+                        userAvatarEl.onerror = function() { this.onerror = null; this.src = 'after-dark-banner.jpg'; };
+                    }
+
+                    // Expose latest user data globally and notify pages
+                    window.currentUserData = userData;
+                    try {
+                        document.dispatchEvent(new CustomEvent('userProfileUpdated', { detail: { user, userData } }));
+                    } catch (e) {
+                        /* ignore */
+                    }
+                } catch (domError) {
+                    console.warn('Could not update sidebar elements on this page:', domError);
+                }
+
                 // Redirect based on user state (only if on index page)
                 if (window.location.pathname.includes('index.html') || window.location.pathname === '/') {
                     if (userData.isAdmin) {
@@ -67,6 +100,7 @@ async function handleAuthStateChange(user) {
     } else {
         console.log('No user logged in');
         currentUser = null;
+        window.currentUser = null;
         
         // If not logged in and trying to access protected pages, redirect to index
         const protectedPages = ['dashboard.html', 'profile.html', 'browse.html', 'messages.html', 'admin.html', 'upload-photos.html'];

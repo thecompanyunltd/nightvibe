@@ -631,7 +631,7 @@ async function updateSidebarUserInfo() {
             if (userStatus) userStatus.textContent = userData.profileComplete ? 'Profile Complete' : 'Setup Required';
             
             if (userAvatar) {
-                let avatarUrl = 'https://via.placeholder.com/100';
+                let avatarUrl = 'after-dark-banner.jpg';
                 if (userData.photos && userData.photos.length > 0) {
                     const firstPhoto = userData.photos[0];
                     avatarUrl = typeof firstPhoto === 'string' ? firstPhoto : firstPhoto.url;

@@ -60,7 +60,7 @@
         
         <div class="user-profile">
             <div class="avatar">
-                <img id="userAvatar" src="https://via.placeholder.com/100" alt="Avatar">
+                <img id="userAvatar" src="after-dark-banner.jpg" alt="Avatar">
                 <span class="online-status"></span>
             </div>
             <div class="user-info">
@@ -199,37 +199,8 @@
                     </a>
                 </div>
             </div>
-            
-            <!-- Recent Activity -->
-            <div class="recent-activity">
-                <div class="activity-header">
-                    <h2>Recent Activity</h2>
-                    <a href="#" class="view-all" onclick="viewAllActivity()">View All</a>
-                </div>
-                <div class="activity-list" id="activityList">
-                    <div class="activity-item">
-                        <i class="fas fa-info-circle"></i>
-                        <p>Loading activities...</p>
-                        <span class="activity-time">Just now</span>
-                    </div>
-                </div>
-            </div>
-            
-            <!-- Suggested Profiles -->
-            <div class="suggested-profiles">
-                <div class="suggested-header">
-                    <h2>People You Might Like</h2>
-                    <a href="browse-profiles.html" class="view-all">Browse All</a>
-                </div>
-                <div class="profiles-grid" id="suggestedProfiles">
-                    <div class="profile-card placeholder">
-                        <div class="profile-avatar">
-                            <i class="fas fa-user"></i>
-                        </div>
-                        <p>Loading suggestions...</p>
-                    </div>
-                </div>
-            </div>
+        
+        
         </div>
     </main>
     
@@ -314,52 +285,115 @@
         // Load user data from Firestore
         async function loadUserData() {
             try {
+                // Default fallbacks
+                const authUser = currentUser || (firebase.auth() && firebase.auth().currentUser);
+                let username = (authUser && (authUser.displayName || authUser.email)) || 'User';
+                let avatarUrl = 'after-dark-banner.jpg';
+
+                // Try reading Firestore profile (prefer this when available)
                 const userDoc = await firebase.firestore()
                     .collection("users")
                     .doc(currentUser.uid)
                     .get();
-                
+
                 if (userDoc.exists) {
                     userData = userDoc.data();
-                    console.log("User data loaded:", userData.username);
-                    
-                    // Update sidebar
-                    document.getElementById('userName').textContent = userData.username || 'User';
-                    document.getElementById('welcomeName').textContent = userData.username || 'User';
-                    
+                    console.log("User data loaded:", userData.username || '(no username)');
+
+                    // Prefer Firestore username if present
+                    if (userData.username) username = userData.username;
+
+                    // Prefer first user photo (string or object with url)
                     if (userData.photos && userData.photos.length > 0) {
                         const firstPhoto = userData.photos[0];
-                        const avatarUrl = typeof firstPhoto === 'string' ? firstPhoto : firstPhoto.url;
-                        document.getElementById('userAvatar').src = avatarUrl;
+                        if (typeof firstPhoto === 'string') {
+                            avatarUrl = firstPhoto;
+                        } else {
+                            // Support several possible fields returned by Cloudinary or other upload services
+                            avatarUrl = firstPhoto.url || firstPhoto.secure_url || firstPhoto.src || firstPhoto.path || avatarUrl;
+                        }
                     }
-                    
-                    // Update user status
+
+                    // Update user status if present
                     const userStatus = document.getElementById('userStatus');
-                    if (userData.status) {
+                    if (userData.status && userStatus) {
                         userStatus.textContent = userData.status;
                         userStatus.className = userData.status.toLowerCase();
                     }
-                    
                 } else {
-                    console.error("User document not found");
-                    showNotification("User profile not found", "error");
+                    console.warn("User document not found in Firestore, falling back to auth profile");
                 }
+
+                // Additional fallback: use firebase auth photoURL if no Firestore photo
+                if ((!avatarUrl || avatarUrl === '') && authUser && authUser.photoURL) {
+                    avatarUrl = authUser.photoURL;
+                }
+
+                // Update sidebar elements safely
+                const userNameEl = document.getElementById('userName');
+                const welcomeNameEl = document.getElementById('welcomeName');
+                const userAvatarEl = document.getElementById('userAvatar');
+
+                if (userNameEl) userNameEl.textContent = username;
+                if (welcomeNameEl) welcomeNameEl.textContent = username;
+
+                if (userAvatarEl) {
+                    userAvatarEl.src = avatarUrl || 'after-dark-banner.jpg';
+                    // Ensure broken images fall back to our banner
+                    userAvatarEl.onerror = function() { this.onerror = null; this.src = 'after-dark-banner.jpg'; };
+                }
+
             } catch (error) {
                 console.error("Error loading user data:", error);
                 showNotification("Failed to load user data", "error");
+
+                // Ensure at least a sensible fallback is visible
+                const userNameEl = document.getElementById('userName');
+                const welcomeNameEl = document.getElementById('welcomeName');
+                const userAvatarEl = document.getElementById('userAvatar');
+                if (userNameEl) userNameEl.textContent = (firebase.auth().currentUser && (firebase.auth().currentUser.displayName || firebase.auth().currentUser.email)) || 'User';
+                if (welcomeNameEl) welcomeNameEl.textContent = userNameEl.textContent;
+                if (userAvatarEl) userAvatarEl.src = 'after-dark-banner.jpg';
             }
         }
         
         // Update dashboard UI
         function updateDashboardUI() {
-            // Update stats (placeholder for now)
-            if (userData) {
-                // You would update these with real data from your database
-                document.getElementById('profileViews').textContent = userData.stats?.profileViews || '0';
-                document.getElementById('messagesReceived').textContent = userData.stats?.messages || '0';
-                document.getElementById('likesReceived').textContent = userData.stats?.likes || '0';
-                document.getElementById('matchScore').textContent = userData.stats?.matchScore || '0%';
+            // Update stats if present; hide stat cards if the value is missing or default (0)
+            if (!userData) return;
+
+            const stats = userData.stats || {};
+
+            function hideOrShowStat(id, value, formatFn) {
+                const el = document.getElementById(id);
+                if (!el) return;
+                const card = el.closest('.stat-card');
+                const isMissing = value === undefined || value === null || (typeof value === 'string' && (value.trim() === '' || value === '0%'));
+                if (isMissing) {
+                    // Show a subtle 'Coming soon' text instead of hiding the card
+                    const text = 'Coming soon';
+                    if (card) {
+                        const valueEl = el;
+                        valueEl.textContent = text;
+                        valueEl.classList.add('coming-soon');
+                        valueEl.setAttribute('title', 'This stat will be available soon');
+                    } else {
+                        el.textContent = text;
+                        el.classList.add('coming-soon');
+                        el.setAttribute('title', 'This stat will be available soon');
+                    }
+                } else {
+                    if (card) card.style.display = '';
+                    el.textContent = formatFn ? formatFn(value) : value;
+                    el.classList.remove('coming-soon');
+                    el.removeAttribute('title');
+                }
             }
+
+            hideOrShowStat('profileViews', stats.profileViews);
+            hideOrShowStat('messagesReceived', stats.messages);
+            hideOrShowStat('likesReceived', stats.likes);
+            hideOrShowStat('matchScore', stats.matchScore, v => (typeof v === 'number' ? `${v}%` : v));
         }
         
         // Load dashboard data
@@ -487,7 +521,7 @@
                     const profileCard = document.createElement('div');
                     profileCard.className = 'profile-card';
                     
-                    let avatarUrl = 'https://via.placeholder.com/100';
+                    let avatarUrl = 'after-dark-banner.jpg';
                     if (user.photos && user.photos.length > 0) {
                         const firstPhoto = user.photos[0];
                         avatarUrl = typeof firstPhoto === 'string' ? firstPhoto : firstPhoto.url;
@@ -561,7 +595,7 @@
                     const userItem = document.createElement('div');
                     userItem.className = 'user-item';
                     
-                    let avatarUrl = 'https://via.placeholder.com/40';
+                    let avatarUrl = 'after-dark-banner.jpg';
                     if (user.photos && user.photos.length > 0) {
                         const firstPhoto = user.photos[0];
                         avatarUrl = typeof firstPhoto === 'string' ? firstPhoto : firstPhoto.url;

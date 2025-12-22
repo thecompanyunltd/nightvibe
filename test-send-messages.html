@@ -1,0 +1,77 @@
+<!-- test-send-message.html -->
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Test Message Sending</title>
+</head>
+<body>
+    <h1>Test Message Sending</h1>
+    <button onclick="testSendMessage()">Test Send Message</button>
+    <div id="result"></div>
+    
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-auth.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-firestore.js"></script>
+    <script src="firebase-config.js"></script>
+    
+    <script>
+        async function testSendMessage() {
+            try {
+                const resultDiv = document.getElementById('result');
+                resultDiv.innerHTML = 'Testing...';
+                
+                // Get current user
+                const user = firebase.auth().currentUser;
+                if (!user) {
+                    resultDiv.innerHTML = 'Not logged in';
+                    return;
+                }
+                
+                const db = firebase.firestore();
+                
+                // Send test message
+                const messageData = {
+                    senderId: user.uid,
+                    receiverId: 'test-receiver-id',  // Change this to a real user ID
+                    message: 'Test message at ' + new Date().toLocaleTimeString(),
+                    content: 'Test message at ' + new Date().toLocaleTimeString(),
+                    timestamp: firebase.firestore.FieldValue.serverTimestamp(),
+                    isAnonymous: true,
+                    read: false,
+                    readBy: [user.uid]
+                };
+                
+                const docRef = await db.collection("messages").add(messageData);
+                
+                resultDiv.innerHTML = `
+                    ✅ Message sent successfully!<br>
+                    Document ID: ${docRef.id}<br>
+                    Collection: messages<br>
+                    Data: ${JSON.stringify(messageData)}
+                `;
+                
+                // Check if collection exists
+                const snapshot = await db.collection("messages").get();
+                resultDiv.innerHTML += `<br>Total messages in database: ${snapshot.size}`;
+                
+            } catch (error) {
+                document.getElementById('result').innerHTML = 'Error: ' + error.message;
+                console.error(error);
+            }
+        }
+        
+        // Initialize
+        document.addEventListener('DOMContentLoaded', function() {
+            firebase.auth().onAuthStateChanged(user => {
+                if (user) {
+                    console.log('User logged in:', user.uid);
+                } else {
+                    // Try to login
+                    firebase.auth().signInWithEmailAndPassword('test@nightvibe.com', 'test123')
+                        .catch(error => console.log('Login failed:', error));
+                }
+            });
+        });
+    </script>
+</body>
+</html>

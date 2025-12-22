@@ -1,352 +1,717 @@
-// messages.js - Updated version with Firebase v8 and proper variable handling
 
-// Check if currentUser is already defined in app.js
-let currentUser = window.currentUser || null;
+let currentUserDocId = null; // Will store the user's document ID from Firestore
 let conversations = [];
 let activeConversation = null;
-let conversationListeners = [];
-let selectedRecipients = [];
 
-// Initialize messages page
-document.addEventListener('DOMContentLoaded', async () => {
+// Get currentUser from the global scope (already defined in app.js)
+function getCurrentUser() {
+    return window.currentUser || firebase.auth().currentUser;
+} 
+
+// Initialize when page loads
+// Initialize when page loads
+document.addEventListener('DOMContentLoaded', function() {
     console.log("Messages page initializing...");
     
-    // Wait for Firebase to be ready
-    setTimeout(async () => {
-        if (typeof firebase === 'undefined' || !firebase.apps.length) {
-            console.error('Firebase not loaded!');
-            showNotification('Firebase not loaded. Please refresh page.', 'error');
-            return;
-        }
-        
-        // Get current user from Firebase auth
-        const user = firebase.auth().currentUser;
+    // Wait for app.js to initialize first
+    setTimeout(() => {
+        const user = getCurrentUser();
         if (!user) {
+            console.log("No user, redirecting to index");
             window.location.href = 'index.html';
             return;
         }
         
-        currentUser = user;
-        console.log("Current user:", currentUser.uid);
+        console.log("Current user from app.js:", user.uid);
         
-        await initializeMessages();
-        setupEventListeners();
-        updateSidebarUserInfo();
-    }, 1000);
+        // Initialize messages
+        initializeMessages();
+        
+    }, 1500); // Increased delay to ensure app.js loads first
 });
 
-// Initialize messages functionality
 async function initializeMessages() {
     try {
+        console.log("🔧 Initializing messages...");
+        
+        // First, get the user's document from Firestore users collection
+        const foundUser = await getUserDocumentFromFirestore();
+        
+        if (!foundUser) {
+            console.error("❌ Could not find user document");
+            return;
+        }
+        
+        // Now load conversations using the user's document ID
         await loadConversations();
-        setupRealTimeListeners();
-        updateUnreadCount();
+        setupEventListeners();
+        updateSidebarUserInfo();
+        
+        console.log("✅ Messages initialization complete");
     } catch (error) {
-        console.error('Error initializing messages:', error);
-        showNotification('Failed to initialize messages', 'error');
+        console.error("❌ Error initializing messages:", error);
+        showNotification("Failed to load messages", "error");
     }
 }
 
-// Load conversations from Firestore
-async function loadConversations() {
+async function getUserDocumentFromFirestore() {
     try {
+        const user = getCurrentUser();
+        if (!user) {
+            console.error("No authenticated user");
+            return false;
+        }
+        
+        console.log("🔄 Auth user UID:", user.uid);
         const db = firebase.firestore();
         
-        // Get all messages where user is sender or receiver
-        const messagesRef = db.collection("messages");
-        const querySnapshot = await messagesRef
-            .where("participants", "array-contains", currentUser.uid)
+        // METHOD 1: Try to find by username first (since you're logged in as "admin")
+        console.log("🔍 Searching by username 'admin'...");
+        const usernameQuery = await db.collection("users")
+            .where("username", "==", "admin")
+            .limit(1)
             .get();
         
-        // Process messages into conversations
-        const conversationsMap = new Map();
-        
-        querySnapshot.forEach(doc => {
-            const message = { id: doc.id, ...doc.data() };
-            
-            // Find other participant
-            const otherParticipant = message.participants.find(id => id !== currentUser.uid);
-            if (!otherParticipant) return;
-            
-            // Get or create conversation
-            if (!conversationsMap.has(otherParticipant)) {
-                conversationsMap.set(otherParticipant, {
-                    participantId: otherParticipant,
-                    messages: [],
-                    unreadCount: 0,
-                    lastMessage: null
+        if (!usernameQuery.empty) {
+            usernameQuery.forEach(doc => {
+                currentUserDocId = doc.id;
+                console.log("✅ Found user by username 'admin':", {
+                    docId: currentUserDocId,
+                    data: doc.data()
                 });
-            }
-            
-            const conversation = conversationsMap.get(otherParticipant);
-            conversation.messages.push(message);
-            
-            // Update last message
-            if (!conversation.lastMessage || message.timestamp > conversation.lastMessage.timestamp) {
-                conversation.lastMessage = message;
-            }
-            
-            // Update unread count
-            if (!message.readBy?.includes(currentUser.uid)) {
-                conversation.unreadCount++;
-            }
+            });
+            return true;
+        }
+        
+        // METHOD 2: Try by phone number (from your user data)
+        console.log("🔍 Searching by phone '0797999154'...");
+        const phoneQuery = await db.collection("users")
+            .where("phone", "==", "0797999154")
+            .limit(1)
+            .get();
+        
+        if (!phoneQuery.empty) {
+            phoneQuery.forEach(doc => {
+                currentUserDocId = doc.id;
+                console.log("✅ Found user by phone:", {
+                    docId: currentUserDocId,
+                    data: doc.data()
+                });
+            });
+            return true;
+        }
+        
+        // METHOD 3: List all users to debug
+        console.log("⚠️ Could not find user. Listing all users...");
+        const allUsers = await db.collection("users").limit(10).get();
+        console.log("All users in database:");
+        allUsers.forEach(doc => {
+            console.log(`- ${doc.id}:`, doc.data());
         });
         
-        // Convert map to array and sort by last message timestamp
-        conversations = Array.from(conversationsMap.values());
-        conversations.sort((a, b) => {
-            const timeA = a.lastMessage?.timestamp?.toDate() || new Date(0);
-            const timeB = b.lastMessage?.timestamp?.toDate() || new Date(0);
-            return timeB - timeA;
-        });
+        // If we still don't have it, try the first user doc
+        if (!allUsers.empty) {
+            currentUserDocId = allUsers.docs[0].id;
+            console.log("⚠️ Using first user doc as fallback:", currentUserDocId);
+            return true;
+        }
         
-        displayConversations();
+        console.error("❌ No user documents found at all!");
+        return false;
         
     } catch (error) {
-        console.error('Error loading conversations:', error);
-        showNotification('Failed to load conversations', 'error');
+        console.error("❌ Error fetching user document:", error);
+        return false;
     }
 }
 
-// Display conversations in sidebar
-function displayConversations() {
-    const conversationsList = document.getElementById('conversationsList');
-    const totalConversations = document.getElementById('totalConversations');
+
+
+
+async function loadConversations() {
+    try {
+        if (!currentUserDocId) {
+            console.error("❌ User document ID not available");
+            return;
+        }
+        
+        console.log("🔄 Loading messages for user document ID:", currentUserDocId);
+        const db = firebase.firestore();
+        
+        // IMPORTANT: Check BOTH field names (senderId and senderrId)
+        console.log("📥 Querying RECEIVED messages...");
+        
+        // Try query 1: receiverId matches current user
+        const receivedSnapshot1 = await db.collection("messages")
+            .where("receiverId", "==", currentUserDocId)
+            .get();
+        
+        // Try query 2: Check for typo "receiverrId" 
+        const receivedSnapshot2 = await db.collection("messages")
+            .where("receiverrId", "==", currentUserDocId) // Typo version
+            .get();
+        
+        console.log("📊 Query results:", {
+            "receiverId matches": receivedSnapshot1.size,
+            "receiverrId matches": receivedSnapshot2.size
+        });
+        
+        // Combine all messages
+        const allMessages = [];
+        
+        // Process receiverId query
+        receivedSnapshot1.forEach(doc => {
+            const data = doc.data();
+            console.log("Message (receiverId):", {
+                id: doc.id,
+                content: data.content,
+                // Check both spellings
+                senderId: data.senderId || data.senderrId,
+                receiverId: data.receiverId || data.receiverrId
+            });
+            
+            allMessages.push({ 
+                id: doc.id, 
+                ...data,
+                // Normalize field names
+                senderId: data.senderId || data.senderrId,
+                receiverId: data.receiverId || data.receiverrId,
+                senderName: data.senderName || data.senderrName
+            });
+        });
+        
+        // Process receiverrId query
+        receivedSnapshot2.forEach(doc => {
+            const data = doc.data();
+            console.log("Message (receiverrId):", {
+                id: doc.id,
+                content: data.content,
+                senderId: data.senderId || data.senderrId,
+                receiverId: data.receiverId || data.receiverrId
+            });
+            
+            allMessages.push({ 
+                id: doc.id, 
+                ...data,
+                senderId: data.senderId || data.senderrId,
+                receiverId: data.receiverId || data.receiverrId,
+                senderName: data.senderName || data.senderrName
+            });
+        });
+        
+        console.log("📥 Querying SENT messages...");
+        
+        // Try query for sent messages
+        const sentSnapshot1 = await db.collection("messages")
+            .where("senderId", "==", currentUserDocId)
+            .get();
+        
+        const sentSnapshot2 = await db.collection("messages")
+            .where("senderrId", "==", currentUserDocId)
+            .get();
+        
+        console.log("📊 Sent query results:", {
+            "senderId matches": sentSnapshot1.size,
+            "senderrId matches": sentSnapshot2.size
+        });
+        
+        // Process sent messages
+        sentSnapshot1.forEach(doc => {
+            const data = doc.data();
+            allMessages.push({ 
+                id: doc.id, 
+                ...data,
+                senderId: data.senderId || data.senderrId,
+                receiverId: data.receiverId || data.receiverrId,
+                senderName: data.senderName || data.senderrName
+            });
+        });
+        
+        sentSnapshot2.forEach(doc => {
+            const data = doc.data();
+            allMessages.push({ 
+                id: doc.id, 
+                ...data,
+                senderId: data.senderId || data.senderrId,
+                receiverId: data.receiverId || data.receiverrId,
+                senderName: data.senderName || data.senderrName
+            });
+        });
+        
+        console.log("📊 Total unique messages:", allMessages.length);
+        
+        // Remove duplicates (same message ID)
+        const uniqueMessages = [];
+        const seenIds = new Set();
+        
+        allMessages.forEach(msg => {
+            if (!seenIds.has(msg.id)) {
+                seenIds.add(msg.id);
+                uniqueMessages.push(msg);
+            }
+        });
+        
+        console.log("📊 Unique messages after deduplication:", uniqueMessages.length);
+        
+        if (uniqueMessages.length === 0) {
+            console.log("ℹ️ No messages found for user");
+            displayNoConversations();
+            return;
+        }
+        
+        // Display what we found
+        console.log("📄 All messages found:");
+        uniqueMessages.forEach((msg, index) => {
+            console.log(`Message ${index + 1}:`, {
+                id: msg.id,
+                content: msg.content,
+                senderId: msg.senderId,
+                receiverId: msg.receiverId,
+                senderName: msg.senderName,
+                isAnonymous: msg.isAnonymous
+            });
+        });
+        
+        // Group messages into conversations
+        groupMessagesIntoConversations(uniqueMessages);
+        
+    } catch (error) {
+        console.error("❌ Error loading conversations:", error);
+        console.error("Error code:", error.code);
+        console.error("Error message:", error.message);
+    }
+}
+
+
+function groupMessagesIntoConversations(messages) {
+    const conversationsMap = new Map();
     
-    if (!conversationsList) return;
+    messages.forEach(message => {
+        // Determine the other user in this conversation
+        let otherUserId;
+        
+        if (message.senderId === currentUserDocId) {
+            // Current user is the sender, other user is the receiver
+            otherUserId = message.receiverId;
+        } else if (message.receiverId === currentUserDocId) {
+            // Current user is the receiver, other user is the sender
+            otherUserId = message.senderId;
+        } else {
+            // Skip messages where current user is neither sender nor receiver
+            console.warn("Message not related to current user:", message);
+            return;
+        }
+        
+        // Skip if we can't determine the other user
+        if (!otherUserId) {
+            console.warn("Could not determine other user for message:", message);
+            return;
+        }
+        
+        // Get or create conversation object
+        if (!conversationsMap.has(otherUserId)) {
+            conversationsMap.set(otherUserId, {
+                participantId: otherUserId,
+                messages: [],
+                unreadCount: 0,
+                lastMessage: null,
+                lastMessageTime: null,
+                otherUserData: null
+            });
+        }
+        
+        const conversation = conversationsMap.get(otherUserId);
+        conversation.messages.push(message);
+        
+        // Get message time
+        let messageTime;
+        if (message.timestamp && message.timestamp.toDate) {
+            messageTime = message.timestamp.toDate();
+        } else if (message.timestamp) {
+            messageTime = new Date(message.timestamp);
+        } else {
+            messageTime = new Date(0);
+        }
+        
+        // Update last message (most recent)
+        if (!conversation.lastMessageTime || messageTime > conversation.lastMessageTime) {
+            conversation.lastMessage = message;
+            conversation.lastMessageTime = messageTime;
+        }
+        
+        // Count unread messages (only for received messages)
+        if (message.receiverId === currentUserDocId) {
+            const isRead = (message.readBy && Array.isArray(message.readBy) && 
+                          message.readBy.includes(currentUserDocId)) || 
+                          message.read === true;
+            
+            if (!isRead) {
+                conversation.unreadCount++;
+            }
+        }
+    });
     
-    if (conversations.length === 0) {
-        conversationsList.innerHTML = `
-            <div class="empty-conversations">
-                <i class="fas fa-comments"></i>
-                <p>No conversations yet</p>
-                <button class="btn-small" onclick="composeNewMessage()">Start Chatting</button>
-            </div>
-        `;
-        if (totalConversations) totalConversations.textContent = '0';
+    // Convert map to array
+    conversations = Array.from(conversationsMap.values());
+    
+    // Sort by last message time (newest first)
+    conversations.sort((a, b) => {
+        const timeA = a.lastMessageTime || new Date(0);
+        const timeB = b.lastMessageTime || new Date(0);
+        return timeB - timeA;
+    });
+    
+    console.log("Grouped into", conversations.length, "conversations");
+    displayConversations();
+}
+
+async function displayConversations() {
+    const container = document.getElementById('conversationsList');
+    if (!container) {
+        console.error("conversationsList element not found!");
         return;
     }
     
-    if (totalConversations) totalConversations.textContent = conversations.length;
-    conversationsList.innerHTML = '';
+    if (conversations.length === 0) {
+        displayNoConversations();
+        return;
+    }
     
-    conversations.forEach(conversation => {
-        const conversationElement = createConversationElement(conversation);
-        conversationsList.appendChild(conversationElement);
-    });
+    // Update conversation count
+    const countElement = document.getElementById('totalConversations');
+    if (countElement) {
+        countElement.textContent = conversations.length;
+    }
+    
+    // Clear container
+    container.innerHTML = '';
+    
+    // Load and display each conversation
+    for (const conversation of conversations) {
+        try {
+            const convElement = await createConversationElement(conversation);
+            container.appendChild(convElement);
+        } catch (error) {
+            console.error("Error creating conversation element:", error);
+        }
+    }
+    
+    // Update unread count badge
+    updateUnreadCount();
 }
 
-// Create conversation element
 async function createConversationElement(conversation) {
+    const element = document.createElement('div');
+    element.className = `conversation-item ${conversation.unreadCount > 0 ? 'unread' : ''}`;
+    element.onclick = () => openConversation(conversation);
+    
     try {
+        // Get other user's data from Firestore
         const db = firebase.firestore();
+        const userDoc = await db.collection("users").doc(conversation.participantId).get();
+        const userData = userDoc.exists ? userDoc.data() : null;
         
-        // Get participant info
-        const participantDoc = await db.collection("users").doc(conversation.participantId).get();
-        const participantData = participantDoc.exists ? participantDoc.data() : null;
+        // Store for later use
+        conversation.otherUserData = userData;
         
-        const element = document.createElement('div');
-        element.className = `conversation-item ${conversation.unreadCount > 0 ? 'unread' : ''}`;
-        element.onclick = () => openConversation(conversation);
+        // Get avatar URL
+        let avatarUrl = 'after-dark-banner.jpg';
+        if (userData) {
+            if (userData.photoURL) {
+                avatarUrl = userData.photoURL;
+            } else if (userData.photos && userData.photos.length > 0) {
+                const firstPhoto = userData.photos[0];
+                avatarUrl = typeof firstPhoto === 'string' ? firstPhoto : firstPhoto.url;
+            }
+        }
         
         // Get last message preview
-        const lastMessage = conversation.lastMessage;
-        let messagePreview = 'No messages';
-        let messageTime = '';
+        let preview = 'No messages';
+        let time = '';
         
-        if (lastMessage) {
-            const senderName = lastMessage.senderId === currentUser.uid 
-                ? 'You' 
-                : participantData?.username || 'Anonymous';
+        if (conversation.lastMessage) {
+            const message = conversation.lastMessage;
             
-            messagePreview = `${senderName}: ${lastMessage.content?.substring(0, 30)}${lastMessage.content?.length > 30 ? '...' : ''}`;
-            messageTime = formatMessageTime(lastMessage.timestamp?.toDate());
+            // Get message content
+            const content = message.content || message.message || '';
+            preview = content.length > 30 ? content.substring(0, 30) + '...' : content;
+            
+            // Check if anonymous
+            if (message.isAnonymous && message.senderName === 'Anonymous' && 
+                message.senderId !== currentUserDocId) {
+                preview = 'Anonymous: ' + preview;
+            }
+            
+            // Format time
+            if (message.timestamp) {
+                let messageTime;
+                if (message.timestamp.toDate) {
+                    messageTime = message.timestamp.toDate();
+                } else {
+                    messageTime = new Date(message.timestamp);
+                }
+                
+                const now = new Date();
+                const diffHours = (now - messageTime) / (1000 * 60 * 60);
+                
+                if (diffHours < 24) {
+                    time = messageTime.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+                } else {
+                    time = messageTime.toLocaleDateString();
+                }
+            }
         }
+        
+        const username = userData?.username || 
+                        userData?.displayName || 
+                        'Unknown User';
         
         element.innerHTML = `
             <div class="conversation-avatar">
-                <img src="${participantData?.photos?.[0]?.url || participantData?.photos?.[0] || 'https://via.placeholder.com/40'}" alt="${participantData?.username || 'User'}">
+                <img src="${avatarUrl}" alt="${username}" onerror="this.src='after-dark-banner.jpg'">
                 ${conversation.unreadCount > 0 ? '<span class="unread-badge"></span>' : ''}
             </div>
             <div class="conversation-info">
-                <h4>${participantData?.username || 'Anonymous User'}</h4>
-                <p class="message-preview">${messagePreview}</p>
-                <span class="message-time">${messageTime}</span>
+                <h4>${username}</h4>
+                <p class="message-preview">${preview}</p>
+                <span class="message-time">${time}</span>
             </div>
-            ${conversation.unreadCount > 0 ? `<span class="unread-count">${conversation.unreadCount}</span>` : ''}
+            ${conversation.unreadCount > 0 ? 
+                `<span class="unread-count">${conversation.unreadCount}</span>` : 
+                ''}
         `;
         
-        return element;
     } catch (error) {
-        console.error('Error creating conversation element:', error);
-        const element = document.createElement('div');
-        element.className = 'conversation-item';
-        element.innerHTML = '<p>Error loading conversation</p>';
-        return element;
+        console.error("Error loading user data for conversation:", error);
+        
+        // Fallback if user data can't be loaded
+        element.innerHTML = `
+            <div class="conversation-avatar">
+                <img src="after-dark-banner.jpg" alt="User">
+            </div>
+            <div class="conversation-info">
+                <h4>User ${conversation.participantId.substring(0, 8)}...</h4>
+                <p class="message-preview">Click to view messages</p>
+                <span class="message-time"></span>
+            </div>
+        `;
     }
+    
+    return element;
 }
 
-// Format message time
-function formatMessageTime(date) {
-    if (!date) return '';
-    
-    const now = new Date();
-    const diffMs = now - date;
-    const diffMins = Math.floor(diffMs / 60000);
-    const diffHours = Math.floor(diffMs / 3600000);
-    const diffDays = Math.floor(diffMs / 86400000);
-    
-    if (diffMins < 1) return 'Just now';
-    if (diffMins < 60) return `${diffMins}m ago`;
-    if (diffHours < 24) return `${diffHours}h ago`;
-    if (diffDays < 7) return `${diffDays}d ago`;
-    return date.toLocaleDateString();
-}
-
-// Open conversation
 async function openConversation(conversation) {
     activeConversation = conversation;
     
-    // Hide no conversation view, show active conversation
-    const noConversationView = document.getElementById('noConversationView');
-    const activeConversationView = document.getElementById('activeConversationView');
+    // Hide "no conversation" view, show conversation view
+    const noConvView = document.getElementById('noConversationView');
+    const activeConvView = document.getElementById('activeConversationView');
     
-    if (noConversationView) noConversationView.style.display = 'none';
-    if (activeConversationView) activeConversationView.style.display = 'flex';
+    if (noConvView) noConvView.style.display = 'none';
+    if (activeConvView) activeConvView.style.display = 'flex';
     
     // Load conversation data
     await loadConversationData(conversation);
-    
-    // Mark messages as read
-    await markMessagesAsRead(conversation);
-    
-    // Setup real-time listener for new messages
-    setupConversationListener(conversation);
 }
 
-// Load conversation data
 async function loadConversationData(conversation) {
     try {
         const db = firebase.firestore();
         
-        // Get participant info
-        const participantDoc = await db.collection("users").doc(conversation.participantId).get();
-        const participantData = participantDoc.exists ? participantDoc.data() : null;
+        // Get other user's data if not already loaded
+        if (!conversation.otherUserData) {
+            const userDoc = await db.collection("users").doc(conversation.participantId).get();
+            conversation.otherUserData = userDoc.exists ? userDoc.data() : null;
+        }
         
         // Update conversation header
-        const partnerAvatar = document.getElementById('partnerAvatar');
-        const partnerUsername = document.getElementById('partnerUsername');
-        const partnerOnlineStatus = document.getElementById('partnerOnlineStatus');
-        const partnerLastSeen = document.getElementById('partnerLastSeen');
-        const blockUsername = document.getElementById('blockUsername');
+        updateConversationHeader(conversation);
         
-        if (partnerAvatar) {
-            const photoUrl = participantData?.photos?.[0]?.url || participantData?.photos?.[0] || 'https://via.placeholder.com/50';
-            partnerAvatar.src = photoUrl;
-        }
-        if (partnerUsername) partnerUsername.textContent = participantData?.username || 'Anonymous User';
-        if (partnerOnlineStatus) {
-            partnerOnlineStatus.className = participantData?.status === 'online' 
-                ? 'partner-online online' 
-                : 'partner-online offline';
-        }
-        if (partnerLastSeen) {
-            partnerLastSeen.textContent = participantData?.status === 'online' 
-                ? 'Online now' 
-                : 'Last seen recently';
-        }
-        if (blockUsername) blockUsername.textContent = participantData?.username || 'this user';
+        // Display messages
+        displayConversationMessages(conversation.messages);
         
-        // Load messages
-        displayMessages(conversation.messages);
+        // Mark messages as read
+        await markMessagesAsRead(conversation);
         
     } catch (error) {
-        console.error('Error loading conversation data:', error);
-        showNotification('Failed to load conversation', 'error');
+        console.error("Error loading conversation data:", error);
+        showNotification("Failed to load conversation", "error");
     }
 }
 
-// Display messages
-function displayMessages(messages) {
-    const messagesList = document.getElementById('messagesList');
-    if (!messagesList) return;
+function updateConversationHeader(conversation) {
+    const userData = conversation.otherUserData;
+    let displayName = 'Unknown User';
     
-    messagesList.innerHTML = '';
+    if (userData) {
+        displayName = userData.username || userData.displayName || displayName;
+    } else if (conversation.lastMessage && conversation.lastMessage.isAnonymous) {
+        // If last message is anonymous, show "Anonymous User"
+        displayName = 'Anonymous User';
+    }
     
-    // Sort messages by timestamp
-    const sortedMessages = [...messages].sort((a, b) => 
-        (a.timestamp?.toDate?.() || new Date(0)) - (b.timestamp?.toDate?.() || new Date(0))
-    );
+    // Update partner info
+    const partnerAvatar = document.getElementById('partnerAvatar');
+    const partnerUsername = document.getElementById('partnerUsername');
+    const blockUsername = document.getElementById('blockUsername');
+    
+    if (partnerAvatar && userData) {
+        if (userData.photoURL) {
+            partnerAvatar.src = userData.photoURL;
+        } else if (userData.photos && userData.photos.length > 0) {
+            const firstPhoto = userData.photos[0];
+            const photoUrl = typeof firstPhoto === 'string' ? firstPhoto : firstPhoto.url;
+            partnerAvatar.src = photoUrl;
+        }
+        partnerAvatar.onerror = function() {
+            this.src = 'after-dark-banner.jpg';
+        }; 
+    } else if (partnerAvatar) {
+        partnerAvatar.src = 'after-dark-banner.jpg';
+    }
+    
+    if (partnerUsername) partnerUsername.textContent = displayName;
+    if (blockUsername) blockUsername.textContent = displayName;
+}
+
+function displayConversationMessages(messages) {
+    const container = document.getElementById('messagesList');
+    if (!container) return;
+    
+    // Sort messages by timestamp (oldest first for conversation view)
+    const sortedMessages = [...messages].sort((a, b) => {
+        const getTime = (msg) => {
+            if (!msg.timestamp) return new Date(0);
+            return msg.timestamp.toDate ? msg.timestamp.toDate() : new Date(msg.timestamp);
+        };
+        
+        const timeA = getTime(a);
+        const timeB = getTime(b);
+        return timeA - timeB;
+    });
+    
+    container.innerHTML = '';
     
     sortedMessages.forEach(message => {
         const messageElement = createMessageElement(message);
-        messagesList.appendChild(messageElement);
+        container.appendChild(messageElement);
     });
     
-    // Scroll to bottom
-    messagesList.scrollTop = messagesList.scrollHeight;
+    // Scroll to bottom to see latest messages
+    setTimeout(() => {
+        container.scrollTop = container.scrollHeight;
+    }, 100);
 }
 
-// Create message element
-async function createMessageElement(message) {
-    const isCurrentUser = message.senderId === currentUser.uid;
-    
+function createMessageElement(message) {
+    const isCurrentUser = message.senderId === currentUserDocId;
     const element = document.createElement('div');
     element.className = `message ${isCurrentUser ? 'sent' : 'received'}`;
     
-    const time = message.timestamp?.toDate?.()?.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) || '';
-    const isAnonymous = message.isAnonymous && !isCurrentUser;
+    // Get message content
+    const content = message.content || message.message || '';
     
-    // Get sender info if not anonymous
-    let senderName = 'Anonymous';
-    let senderPhoto = 'https://via.placeholder.com/30';
-    
-    if (!isCurrentUser && !isAnonymous) {
-        try {
-            const db = firebase.firestore();
-            const senderDoc = await db.collection("users").doc(message.senderId).get();
-            const senderData = senderDoc.exists ? senderDoc.data() : null;
-            
-            if (senderData) {
-                senderName = senderData.username || 'User';
-                senderPhoto = senderData.photos?.[0]?.url || senderData.photos?.[0] || 'https://via.placeholder.com/30';
-            }
-        } catch (error) {
-            console.error('Error getting sender info:', error);
+    // Format time
+    let time = '';
+    if (message.timestamp) {
+        let date;
+        if (message.timestamp.toDate) {
+            date = message.timestamp.toDate();
+        } else {
+            date = new Date(message.timestamp);
         }
+        time = date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    }
+    
+    // CRITICAL: Handle anonymous messages
+    let displayContent = content;
+    let isAnonymous = message.isAnonymous === true;
+    
+    // Hide sender name for anonymous messages when viewing as receiver
+    if (isAnonymous && !isCurrentUser && message.senderName === 'Anonymous') {
+        // Remove any "Anonymous: " prefix if it exists
+        displayContent = content.replace(/^Anonymous:\s*/i, '');
+        
+        // Also hide in conversation list preview
+        // This ensures "Anonymous: " doesn't appear in the sidebar preview
     }
     
     element.innerHTML = `
         <div class="message-content">
-            ${!isCurrentUser && !isAnonymous ? `
-                <div class="message-sender">
-                    <img src="${senderPhoto}" alt="${senderName}">
-                    <span>${senderName}</span>
-                </div>
-            ` : ''}
-            ${!isCurrentUser && isAnonymous ? `
-                <div class="message-sender anonymous">
-                    <i class="fas fa-user-secret"></i>
-                    <span>Anonymous</span>
-                </div>
-            ` : ''}
-            <div class="message-text">${message.content || ''}</div>
+            <div class="message-text">${displayContent}</div>
             <div class="message-time">${time}</div>
-            ${message.readBy?.includes(currentUser.uid) && isCurrentUser ? '<span class="message-read"><i class="fas fa-check-double"></i></span>' : ''}
+            ${isCurrentUser ? 
+                '<span class="message-status">' + 
+                ((message.readBy && message.readBy.includes(message.receiverId)) ? '✓✓' : '✓') + 
+                '</span>' : ''}
         </div>
     `;
     
     return element;
 }
 
-// Send message
+async function markMessagesAsRead(conversation) {
+    try {
+        const db = firebase.firestore();
+        const unreadMessages = conversation.messages.filter(msg => 
+            msg.receiverId === currentUserDocId && 
+            !(msg.readBy?.includes(currentUserDocId) || msg.read === true)
+        );
+        
+        if (unreadMessages.length > 0) {
+            const batch = db.batch();
+            
+            unreadMessages.forEach(msg => {
+                const messageRef = db.collection("messages").doc(msg.id);
+                batch.update(messageRef, {
+                    readBy: firebase.firestore.FieldValue.arrayUnion(currentUserDocId),
+                    read: true
+                });
+            });
+            
+            await batch.commit();
+            
+            // Update conversation unread count
+            conversation.unreadCount = 0;
+            
+            // Update UI
+            updateUnreadCount();
+        }
+        
+    } catch (error) {
+        console.error("Error marking messages as read:", error);
+    }
+}
+
+function updateUnreadCount() {
+    const totalUnread = conversations.reduce((sum, conv) => sum + conv.unreadCount, 0);
+    
+    // Update unread count badge
+    const unreadElement = document.getElementById('unreadCount');
+    if (unreadElement) {
+        unreadElement.textContent = totalUnread > 0 ? totalUnread : '';
+        unreadElement.style.display = totalUnread > 0 ? 'flex' : 'none';
+    }
+    
+    // Update sidebar badge
+    const menuBadge = document.querySelector('.menu-item.active .menu-badge');
+    if (menuBadge) {
+        menuBadge.textContent = totalUnread > 0 ? totalUnread : '';
+        menuBadge.style.display = totalUnread > 0 ? 'flex' : 'none';
+    }
+}
+
 async function sendMessage() {
+    if (!currentUserDocId || !activeConversation) {
+        showNotification("Cannot send message: user or conversation not loaded", "error");
+        return;
+    }
+    
     const messageInput = document.getElementById('messageInput');
     const content = messageInput?.value?.trim();
-    const sendAnonymously = document.getElementById('sendAnonymously')?.checked || false;
     
-    if (!content || !activeConversation) {
-        showNotification('Please enter a message', 'error');
+    if (!content) {
+        showNotification("Please enter a message", "error");
         return;
     }
     
@@ -355,15 +720,28 @@ async function sendMessage() {
         
         const messageData = {
             content: content,
-            senderId: currentUser.uid,
+            message: content, // Both fields for compatibility
+            senderId: currentUserDocId,
             receiverId: activeConversation.participantId,
-            participants: [currentUser.uid, activeConversation.participantId],
-            isAnonymous: sendAnonymously,
+            participants: [currentUserDocId, activeConversation.participantId],
+            isAnonymous: document.getElementById('sendAnonymously')?.checked || false,
             timestamp: firebase.firestore.FieldValue.serverTimestamp(),
-            readBy: [currentUser.uid]
+            readBy: [currentUserDocId],
+            read: false
         };
         
-        // Add message to Firestore
+        // Add sender name if anonymous
+        if (messageData.isAnonymous) {
+            messageData.senderName = 'Anonymous';
+        } else {
+            // Get current user's name for the sender name
+            const userDoc = await db.collection("users").doc(currentUserDocId).get();
+            if (userDoc.exists) {
+                const userData = userDoc.data();
+                messageData.senderName = userData.username || userData.displayName || 'User';
+            }
+        }
+        
         await db.collection("messages").add(messageData);
         
         // Clear input
@@ -372,367 +750,129 @@ async function sendMessage() {
         // Update character counter
         updateCharCounter();
         
-        // Add message to UI immediately
-        const tempMessage = {
-            ...messageData,
-            id: 'temp-' + Date.now(),
-            timestamp: { toDate: () => new Date() }
-        };
-        
-        const messageElement = await createMessageElement(tempMessage);
-        const messagesList = document.getElementById('messagesList');
-        if (messagesList) messagesList.appendChild(messageElement);
-        
-        // Scroll to bottom
-        if (messagesList) messagesList.scrollTop = messagesList.scrollHeight;
+        // Refresh messages to show the new one
+        refreshMessages();
         
     } catch (error) {
-        console.error('Error sending message:', error);
-        showNotification('Failed to send message', 'error');
+        console.error("Error sending message:", error);
+        showNotification("Failed to send message", "error");
     }
 }
 
-// Send anonymous message
+async function testFirestoreManually() {
+    console.clear();
+    console.log("🧪 MANUAL FIRESTORE TEST");
+    
+    const db = firebase.firestore();
+    const authUser = firebase.auth().currentUser;
+    
+    console.log("1. Auth User:", authUser?.uid);
+    
+    // Test 1: Check users collection
+    console.log("2. Checking users collection...");
+    const usersQuery = await db.collection("users")
+        .where("uid", "==", authUser.uid)
+        .limit(1)
+        .get();
+    
+    console.log("Users found:", usersQuery.size);
+    usersQuery.forEach(doc => {
+        console.log("User doc ID:", doc.id);
+        console.log("User data:", doc.data());
+    });
+    
+    if (usersQuery.empty) {
+        console.log("⚠️ No user document found!");
+        
+        // Try getting ALL users to see structure
+        console.log("Checking ALL users to see structure...");
+        const allUsers = await db.collection("users").limit(5).get();
+        console.log("First 5 users:", allUsers.docs.map(doc => ({
+            id: doc.id,
+            data: doc.data()
+        })));
+    }
+    
+    // Test 2: Check messages collection
+    console.log("3. Checking ALL messages...");
+    const allMessages = await db.collection("messages").limit(10).get();
+    console.log("Total messages in DB:", allMessages.size);
+    
+    allMessages.forEach((doc, index) => {
+        console.log(`Message ${index + 1}:`, {
+            id: doc.id,
+            receiverId: doc.data().receiverId,
+            senderId: doc.data().senderId,
+            content: doc.data().content || doc.data().message
+        });
+    });
+    
+    // Test 3: If we found a user doc, check for their messages
+    if (!usersQuery.empty) {
+        const userDocId = usersQuery.docs[0].id;
+        console.log(`4. Checking messages for user doc ID: ${userDocId}`);
+        
+        const userMessages = await db.collection("messages")
+            .where("receiverId", "==", userDocId)
+            .get();
+        
+        console.log(`Messages where receiverId = ${userDocId}:`, userMessages.size);
+    }
+}
+async function quickDebug() {
+    console.clear();
+    console.log("🔍 QUICK DEBUG SESSION");
+    
+    const db = firebase.firestore();
+    const authUser = firebase.auth().currentUser;
+    
+    console.log("1. Auth User:", authUser?.uid, authUser?.email);
+    
+    // List all users
+    console.log("2. All users in database:");
+    const allUsers = await db.collection("users").get();
+    allUsers.forEach(doc => {
+        console.log(`- ID: ${doc.id}`);
+        console.log(`  Data:`, doc.data());
+    });
+    
+    // List all messages
+    console.log("3. All messages in database:");
+    const allMessages = await db.collection("messages").get();
+    allMessages.forEach(doc => {
+        const data = doc.data();
+        console.log(`- ID: ${doc.id}`);
+        console.log(`  Content: ${data.content || data.message}`);
+        console.log(`  Sender: ${data.senderId || data.senderrId}`);
+        console.log(`  Receiver: ${data.receiverId || data.receiverrId}`);
+        console.log(`  Fields:`, Object.keys(data));
+    });
+    
+    console.log("4. Current user doc ID:", currentUserDocId);
+}
+
+// Call this on page load for debugging
+setTimeout(quickDebug, 2000);
+// ... (keep the rest of your existing functions - updateSidebarUserInfo, showNotification, setupEventListeners, etc.)
+
 function sendAnonymousMessage() {
     const anonymousCheckbox = document.getElementById('sendAnonymously');
     if (anonymousCheckbox) anonymousCheckbox.checked = true;
     sendMessage();
 }
 
-// Compose new message
 function composeNewMessage() {
-    const composeSidebar = document.getElementById('composeSidebar');
-    const noConversationView = document.getElementById('noConversationView');
-    const activeConversationView = document.getElementById('activeConversationView');
-    
-    if (composeSidebar) composeSidebar.style.display = 'block';
-    if (noConversationView) noConversationView.style.display = 'none';
-    if (activeConversationView) activeConversationView.style.display = 'none';
+    showNotification("New message feature coming soon", "info");
 }
 
-// Close compose sidebar
 function closeCompose() {
-    const composeSidebar = document.getElementById('composeSidebar');
-    const noConversationView = document.getElementById('noConversationView');
-    const activeConversationView = document.getElementById('activeConversationView');
-    
-    if (composeSidebar) composeSidebar.style.display = 'none';
-    if (noConversationView) noConversationView.style.display = 'block';
-    if (activeConversationView) activeConversationView.style.display = 'none';
-    
-    clearRecipientSearch();
+    showNotification("Close compose", "info");
 }
 
-// Search for recipients
-let searchTimeout;
-const recipientSearch = document.getElementById('recipientSearch');
-if (recipientSearch) {
-    recipientSearch.addEventListener('input', (e) => {
-        clearTimeout(searchTimeout);
-        searchTimeout = setTimeout(() => searchUsers(e.target.value), 300);
-    });
+function sendComposedMessage() {
+    showNotification("Send composed message", "info");
 }
 
-async function searchUsers(query) {
-    if (!query?.trim()) {
-        const searchResults = document.getElementById('searchResults');
-        if (searchResults) searchResults.innerHTML = '';
-        return;
-    }
-    
-    try {
-        const db = firebase.firestore();
-        const usersRef = db.collection("users");
-        const querySnapshot = await usersRef
-            .where("username", ">=", query)
-            .where("username", "<=", query + "\uf8ff")
-            .limit(10)
-            .get();
-        
-        const results = [];
-        querySnapshot.forEach(doc => {
-            if (doc.id !== currentUser.uid) {
-                results.push({ id: doc.id, ...doc.data() });
-            }
-        });
-        
-        displaySearchResults(results);
-    } catch (error) {
-        console.error('Error searching users:', error);
-    }
-}
-
-function displaySearchResults(users) {
-    const resultsContainer = document.getElementById('searchResults');
-    if (!resultsContainer) return;
-    
-    resultsContainer.innerHTML = '';
-    
-    if (users.length === 0) {
-        resultsContainer.innerHTML = '<div class="no-results">No users found</div>';
-        return;
-    }
-    
-    users.forEach(user => {
-        const resultElement = document.createElement('div');
-        resultElement.className = 'search-result';
-        const photoUrl = user.photos?.[0]?.url || user.photos?.[0] || 'https://via.placeholder.com/30';
-        resultElement.innerHTML = `
-            <img src="${photoUrl}" alt="${user.username}">
-            <span>${user.username}</span>
-            <button class="btn-small" onclick="addRecipient('${user.id}', '${user.username.replace(/'/g, "\\'")}')">Add</button>
-        `;
-        resultsContainer.appendChild(resultElement);
-    });
-}
-
-function addRecipient(userId, username) {
-    if (!selectedRecipients.some(r => r.id === userId)) {
-        selectedRecipients.push({ id: userId, username });
-        updateSelectedRecipients();
-    }
-    const recipientSearch = document.getElementById('recipientSearch');
-    const searchResults = document.getElementById('searchResults');
-    if (recipientSearch) recipientSearch.value = '';
-    if (searchResults) searchResults.innerHTML = '';
-}
-
-function updateSelectedRecipients() {
-    const container = document.getElementById('selectedRecipients');
-    if (!container) return;
-    
-    container.innerHTML = '';
-    
-    selectedRecipients.forEach(recipient => {
-        const tag = document.createElement('div');
-        tag.className = 'recipient-tag';
-        tag.innerHTML = `
-            ${recipient.username}
-            <button onclick="removeRecipient('${recipient.id}')">
-                <i class="fas fa-times"></i>
-            </button>
-        `;
-        container.appendChild(tag);
-    });
-}
-
-function removeRecipient(userId) {
-    selectedRecipients = selectedRecipients.filter(r => r.id !== userId);
-    updateSelectedRecipients();
-}
-
-function clearRecipientSearch() {
-    selectedRecipients = [];
-    const recipientSearch = document.getElementById('recipientSearch');
-    const searchResults = document.getElementById('searchResults');
-    const selectedRecipientsContainer = document.getElementById('selectedRecipients');
-    const composeSubject = document.getElementById('composeSubject');
-    const composeMessage = document.getElementById('composeMessage');
-    const composeAnonymous = document.getElementById('composeAnonymous');
-    
-    if (recipientSearch) recipientSearch.value = '';
-    if (searchResults) searchResults.innerHTML = '';
-    if (selectedRecipientsContainer) selectedRecipientsContainer.innerHTML = '';
-    if (composeSubject) composeSubject.value = '';
-    if (composeMessage) composeMessage.value = '';
-    if (composeAnonymous) composeAnonymous.checked = true;
-}
-
-async function sendComposedMessage() {
-    const composeSubject = document.getElementById('composeSubject');
-    const composeMessage = document.getElementById('composeMessage');
-    const composeAnonymous = document.getElementById('composeAnonymous');
-    
-    const subject = composeSubject?.value?.trim();
-    const content = composeMessage?.value?.trim();
-    const sendAnonymously = composeAnonymous?.checked || false;
-    
-    if (selectedRecipients.length === 0) {
-        showNotification('Please select at least one recipient', 'error');
-        return;
-    }
-    
-    if (!content) {
-        showNotification('Please enter a message', 'error');
-        return;
-    }
-    
-    try {
-        const db = firebase.firestore();
-        
-        for (const recipient of selectedRecipients) {
-            const messageData = {
-                content: content,
-                subject: subject || null,
-                senderId: currentUser.uid,
-                receiverId: recipient.id,
-                participants: [currentUser.uid, recipient.id],
-                isAnonymous: sendAnonymously,
-                timestamp: firebase.firestore.FieldValue.serverTimestamp(),
-                readBy: [currentUser.uid]
-            };
-            
-            await db.collection("messages").add(messageData);
-        }
-        
-        showNotification('Message sent successfully', 'success');
-        closeCompose();
-        refreshMessages();
-        
-    } catch (error) {
-        console.error('Error sending composed message:', error);
-        showNotification('Failed to send message', 'error');
-    }
-}
-
-// Mark messages as read
-async function markMessagesAsRead(conversation) {
-    try {
-        const db = firebase.firestore();
-        const batch = db.batch();
-        
-        const unreadMessages = conversation.messages.filter(
-            msg => !msg.readBy?.includes(currentUser.uid) && msg.senderId !== currentUser.uid
-        );
-        
-        for (const message of unreadMessages) {
-            const messageRef = db.collection("messages").doc(message.id);
-            batch.update(messageRef, {
-                readBy: firebase.firestore.FieldValue.arrayUnion(currentUser.uid)
-            });
-        }
-        
-        if (unreadMessages.length > 0) {
-            await batch.commit();
-        }
-        
-        // Update unread count
-        conversation.unreadCount = 0;
-        updateUnreadCount();
-        
-    } catch (error) {
-        console.error('Error marking messages as read:', error);
-    }
-}
-
-// Update unread count
-function updateUnreadCount() {
-    const totalUnread = conversations.reduce((sum, conv) => sum + conv.unreadCount, 0);
-    const unreadCountElement = document.getElementById('unreadCount');
-    if (unreadCountElement) unreadCountElement.textContent = totalUnread || '';
-    
-    // Update badge in sidebar
-    const badge = document.querySelector('.menu-item.active .menu-badge');
-    if (badge) {
-        badge.textContent = totalUnread || '';
-        badge.style.display = totalUnread > 0 ? 'block' : 'none';
-    }
-}
-
-// Setup real-time listeners
-function setupRealTimeListeners() {
-    const db = firebase.firestore();
-    
-    // Listen for new messages
-    const messagesRef = db.collection("messages");
-    const unsubscribe = messagesRef
-        .where("participants", "array-contains", currentUser.uid)
-        .orderBy("timestamp", "desc")
-        .onSnapshot((snapshot) => {
-            snapshot.docChanges().forEach(async (change) => {
-                if (change.type === 'added') {
-                    const message = { id: change.doc.id, ...change.doc.data() };
-                    
-                    // Find conversation or create new
-                    const otherParticipant = message.participants.find(id => id !== currentUser.uid);
-                    let conversation = conversations.find(c => c.participantId === otherParticipant);
-                    
-                    if (!conversation) {
-                        conversation = {
-                            participantId: otherParticipant,
-                            messages: [],
-                            unreadCount: 0,
-                            lastMessage: null
-                        };
-                        conversations.unshift(conversation);
-                    }
-                    
-                    // Add message to conversation
-                    conversation.messages.push(message);
-                    conversation.lastMessage = message;
-                    
-                    // Update unread count if message is from other user
-                    if (message.senderId !== currentUser.uid && !message.readBy?.includes(currentUser.uid)) {
-                        conversation.unreadCount++;
-                    }
-                    
-                    // Sort conversations
-                    conversations.sort((a, b) => {
-                        const timeA = a.lastMessage?.timestamp?.toDate() || new Date(0);
-                        const timeB = b.lastMessage?.timestamp?.toDate() || new Date(0);
-                        return timeB - timeA;
-                    });
-                    
-                    // Update UI
-                    displayConversations();
-                    updateUnreadCount();
-                    
-                    // If this conversation is active, add message to UI
-                    if (activeConversation?.participantId === otherParticipant) {
-                        const messageElement = await createMessageElement(message);
-                        const messagesList = document.getElementById('messagesList');
-                        if (messagesList) messagesList.appendChild(messageElement);
-                        
-                        // Scroll to bottom
-                        if (messagesList) messagesList.scrollTop = messagesList.scrollHeight;
-                        
-                        // Mark as read
-                        if (message.senderId !== currentUser.uid) {
-                            try {
-                                await db.collection("messages").doc(message.id).update({
-                                    readBy: firebase.firestore.FieldValue.arrayUnion(currentUser.uid)
-                                });
-                                conversation.unreadCount = 0;
-                                updateUnreadCount();
-                            } catch (error) {
-                                console.error('Error marking message as read:', error);
-                            }
-                        }
-                    }
-                }
-            });
-        });
-    
-    conversationListeners.push(unsubscribe);
-}
-
-// Setup conversation-specific listener
-function setupConversationListener(conversation) {
-    // Clean up previous listeners
-    conversationListeners.forEach(unsubscribe => unsubscribe());
-    conversationListeners = [];
-    
-    if (!conversation) return;
-    
-    const db = firebase.firestore();
-    const unsubscribe = db.collection("messages")
-        .where("participants", "array-contains", currentUser.uid)
-        .where("participants", "array-contains", conversation.participantId)
-        .orderBy("timestamp", "asc")
-        .onSnapshot((snapshot) => {
-            const messages = [];
-            snapshot.forEach(doc => {
-                messages.push({ id: doc.id, ...doc.data() });
-            });
-            
-            conversation.messages = messages;
-            displayMessages(messages);
-        });
-    
-    conversationListeners.push(unsubscribe);
-}
-
-// View partner profile
 function viewPartnerProfile() {
     if (activeConversation) {
         sessionStorage.setItem('viewProfileId', activeConversation.participantId);
@@ -740,178 +880,95 @@ function viewPartnerProfile() {
     }
 }
 
-// Block user
 function blockUser() {
-    const blockModal = document.getElementById('blockModal');
-    if (blockModal) blockModal.style.display = 'block';
+    showNotification("Block user feature coming soon", "info");
 }
 
 function closeBlockModal() {
-    const blockModal = document.getElementById('blockModal');
-    if (blockModal) blockModal.style.display = 'none';
+    showNotification("Close block modal", "info");
 }
 
-async function confirmBlock() {
-    if (!activeConversation) return;
-    
-    try {
-        const db = firebase.firestore();
-        
-        // Add to blocked users list
-        await db.collection("users").doc(currentUser.uid).update({
-            blockedUsers: firebase.firestore.FieldValue.arrayUnion(activeConversation.participantId)
-        });
-        
-        showNotification('User blocked successfully', 'success');
-        closeBlockModal();
-        refreshMessages();
-        
-    } catch (error) {
-        console.error('Error blocking user:', error);
-        showNotification('Failed to block user', 'error');
-    }
+function confirmBlock() {
+    showNotification("Confirm block", "info");
 }
 
-// Report user
 function reportUser() {
-    const reportModal = document.getElementById('reportModal');
-    if (reportModal) reportModal.style.display = 'block';
+    showNotification("Report user feature coming soon", "info");
 }
 
 function closeReportModal() {
-    const reportModal = document.getElementById('reportModal');
-    const reportForm = document.getElementById('reportForm');
-    
-    if (reportModal) reportModal.style.display = 'none';
-    if (reportForm) reportForm.reset();
+    showNotification("Close report modal", "info");
 }
 
-async function submitReport(e) {
-    e.preventDefault();
-    
-    if (!activeConversation) return;
-    
-    try {
-        const db = firebase.firestore();
-        const formData = new FormData(e.target);
-        const reasons = Array.from(formData.getAll('reason'));
-        const details = document.getElementById('reportDetails')?.value || '';
-        
-        const reportData = {
-            reporterId: currentUser.uid,
-            reportedUserId: activeConversation.participantId,
-            reasons: reasons,
-            details: details,
-            timestamp: firebase.firestore.FieldValue.serverTimestamp(),
-            status: 'pending'
-        };
-        
-        await db.collection("reports").add(reportData);
-        
-        showNotification('Report submitted successfully', 'success');
-        closeReportModal();
-        
-    } catch (error) {
-        console.error('Error submitting report:', error);
-        showNotification('Failed to submit report', 'error');
+function clearConversation() {
+    if (activeConversation && confirm("Clear all messages in this conversation?")) {
+        showNotification("Clear conversation", "info");
     }
 }
 
-// Clear conversation
-async function clearConversation() {
-    if (!activeConversation || !confirm('Clear all messages in this conversation?')) return;
+async function refreshMessages() {
+    console.log("Refreshing messages...");
     
-    try {
-        const db = firebase.firestore();
-        const batch = db.batch();
+    // Show loading indicator
+    const container = document.getElementById('conversationsList');
+    if (container) {
+        const originalContent = container.innerHTML;
+        container.innerHTML = `
+            <div class="loading-conversations">
+                <i class="fas fa-spinner fa-spin"></i>
+                <span>Refreshing...</span>
+            </div>
+        `;
         
-        for (const message of activeConversation.messages) {
-            if (message.senderId === currentUser.uid) {
-                const messageRef = db.collection("messages").doc(message.id);
-                batch.update(messageRef, {
-                    deletedBySender: true,
-                    lastUpdated: firebase.firestore.FieldValue.serverTimestamp()
-                });
+        // Load conversations
+        await loadConversations();
+        
+        // Restore if error
+        setTimeout(() => {
+            if (container.innerHTML.includes('loading-conversations')) {
+                container.innerHTML = originalContent;
             }
-        }
-        
-        await batch.commit();
-        
-        // Clear messages from UI
-        activeConversation.messages = activeConversation.messages.filter(
-            msg => msg.senderId !== currentUser.uid
-        );
-        
-        displayMessages(activeConversation.messages);
-        showNotification('Conversation cleared', 'success');
-        
-    } catch (error) {
-        console.error('Error clearing conversation:', error);
-        showNotification('Failed to clear conversation', 'error');
+        }, 3000);
+    } else {
+        await loadConversations();
     }
+    
+    // Show brief notification
+    const notification = document.createElement('div');
+    notification.textContent = '✓ Messages refreshed';
+    notification.style.cssText = `
+        position: fixed;
+        bottom: 20px;
+        right: 20px;
+        background: #2a9d8f;
+        color: white;
+        padding: 8px 16px;
+        border-radius: 4px;
+        z-index: 1000;
+        font-size: 14px;
+        opacity: 0;
+        transition: opacity 0.3s;
+    `;
+    
+    document.body.appendChild(notification);
+    setTimeout(() => notification.style.opacity = '1', 10);
+    setTimeout(() => {
+        notification.style.opacity = '0';
+        setTimeout(() => notification.remove(), 300);
+    }, 2000);
 }
 
-// Refresh messages
-function refreshMessages() {
-    loadConversations();
-    showNotification('Refreshing messages...', 'info');
-}
-
-// Setup event listeners
-function setupEventListeners() {
-    // Message input
-    const messageInput = document.getElementById('messageInput');
-    if (messageInput) {
-        messageInput.addEventListener('input', updateCharCounter);
-        messageInput.addEventListener('keypress', (e) => {
-            if (e.key === 'Enter' && !e.shiftKey) {
-                e.preventDefault();
-                sendMessage();
-            }
-        });
-    }
-    
-    // Compose message input
-    const composeMessage = document.getElementById('composeMessage');
-    if (composeMessage) {
-        composeMessage.addEventListener('input', () => {
-            const length = composeMessage.value.length;
-            const composeCharCounter = document.getElementById('composeCharCounter');
-            if (composeCharCounter) composeCharCounter.textContent = `${length}/1000`;
-        });
-    }
-    
-    // Report form
-    const reportForm = document.getElementById('reportForm');
-    if (reportForm) {
-        reportForm.addEventListener('submit', submitReport);
-    }
-    
-    // Message filter
-    const messageFilter = document.getElementById('messageFilter');
-    if (messageFilter) {
-        messageFilter.addEventListener('change', filterMessages);
-    }
+function attachFile() {
+    showNotification("Attach file feature coming soon", "info");
 }
 
 function updateCharCounter() {
     const messageInput = document.getElementById('messageInput');
     const length = messageInput ? messageInput.value.length : 0;
-    const charCounter = document.getElementById('messageCharCounter');
-    if (charCounter) charCounter.textContent = `${length}/1000`;
+    const counter = document.getElementById('messageCharCounter');
+    if (counter) counter.textContent = `${length}/1000`;
 }
 
-function filterMessages() {
-    const filter = document.getElementById('messageFilter')?.value;
-    showNotification(`Filtering: ${filter}`, 'info');
-}
-
-// Attach file (placeholder)
-function attachFile() {
-    showNotification('File attachment feature coming soon', 'info');
-}
-
-// Update sidebar user info
 async function updateSidebarUserInfo() {
     try {
         const db = firebase.firestore();
@@ -923,32 +980,34 @@ async function updateSidebarUserInfo() {
             const userAvatar = document.getElementById('userAvatar');
             
             if (userName) userName.textContent = userData.username || 'User';
-            if (userAvatar) {
-                const photoUrl = userData.photos?.[0]?.url || userData.photos?.[0] || 'https://via.placeholder.com/100';
+            if (userAvatar && userData.photos && userData.photos.length > 0) {
+                const firstPhoto = userData.photos[0];
+                const photoUrl = typeof firstPhoto === 'string' ? firstPhoto : firstPhoto.url;
                 userAvatar.src = photoUrl;
             }
         }
     } catch (error) {
-        console.error('Error updating sidebar info:', error);
+        console.error("Error updating sidebar info:", error);
     }
 }
 
-// Toggle sidebar
 function toggleSidebar() {
     const sidebar = document.querySelector('.sidebar');
     if (sidebar) sidebar.classList.toggle('active');
 }
 
-// Clean up listeners when leaving page
-window.addEventListener('beforeunload', () => {
-    conversationListeners.forEach(unsubscribe => {
-        if (typeof unsubscribe === 'function') unsubscribe();
-    });
-});
+function logout() {
+    if (firebase.auth().currentUser) {
+        firebase.auth().signOut().then(() => {
+            window.location.href = 'index.html';
+        });
+    } else {
+        window.location.href = 'index.html';
+    }
+}
 
-// Notification function
 function showNotification(message, type = 'info') {
-    console.log(`Notification [${type}]: ${message}`);
+    console.log(`[${type}] ${message}`);
     
     // Use app.js notification if available
     if (window.showNotification && window.showNotification !== showNotification) {
@@ -956,21 +1015,245 @@ function showNotification(message, type = 'info') {
         return;
     }
     
-    // Fallback notification
+    // Simple alert for now
+    alert(message);
+}
+
+// Event listeners
+function setupEventListeners() {
+    const messageInput = document.getElementById('messageInput');
+    if (messageInput) {
+        messageInput.addEventListener('input', updateCharCounter);
+        messageInput.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault();
+                sendMessage();
+            }
+        });
+    }
+    
+    // Add real-time listener for new messages
+    setupRealtimeListener();
+}
+
+function setupRealtimeListener() {
+    try {
+        const db = firebase.firestore();
+        
+        // Listen ONLY for new messages where current user is receiver
+        db.collection("messages")
+            .where("receiverId", "==", currentUserDocId)
+            .onSnapshot((snapshot) => {
+                snapshot.docChanges().forEach((change) => {
+                    if (change.type === 'added') {
+                        console.log("🔔 New message received!");
+                        
+                        // Get the new message
+                        const newMessage = {
+                            id: change.doc.id,
+                            ...change.doc.data(),
+                            senderId: change.doc.data().senderId || change.doc.data().senderrId,
+                            receiverId: change.doc.data().receiverId || change.doc.data().receiverrId
+                        };
+                        
+                        // Check if this is for the currently open conversation
+                        if (activeConversation && 
+                            (newMessage.senderId === activeConversation.participantId ||
+                             newMessage.receiverId === activeConversation.participantId)) {
+                            
+                            // Add to current conversation view
+                            addMessageToCurrentView(newMessage);
+                        } else {
+                            // Update conversation list subtly
+                            updateConversationList(newMessage);
+                        }
+                        
+                        // Show subtle notification (optional)
+                        if (!document.hidden) {
+                            showNewMessageNotification(newMessage);
+                        }
+                    }
+                });
+            });
+            
+    } catch (error) {
+        console.error("Error setting up real-time listener:", error);
+    }
+}
+
+// Add message to currently open conversation
+function addMessageToCurrentView(message) {
+    const messagesList = document.getElementById('messagesList');
+    if (!messagesList) return;
+    
+    const messageElement = createMessageElement(message);
+    messagesList.appendChild(messageElement);
+    
+    // Smooth scroll to bottom
+    setTimeout(() => {
+        messagesList.scrollTo({
+            top: messagesList.scrollHeight,
+            behavior: 'smooth'
+        });
+    }, 100);
+    
+    // Add to active conversation's messages array
+    if (activeConversation) {
+        activeConversation.messages.push(message);
+        activeConversation.lastMessage = message;
+        
+        // Update unread count if needed
+        if (message.receiverId === currentUserDocId) {
+            activeConversation.unreadCount++;
+            updateUnreadCount();
+        }
+    }
+}
+
+// Update conversation list without full refresh
+async function updateConversationList(newMessage) {
+    // Find if conversation already exists
+    const existingConvIndex = conversations.findIndex(conv => 
+        conv.participantId === newMessage.senderId ||
+        conv.participantId === newMessage.receiverId
+    );
+    
+    if (existingConvIndex !== -1) {
+        // Update existing conversation
+        const conv = conversations[existingConvIndex];
+        conv.messages.push(newMessage);
+        conv.lastMessage = newMessage;
+        
+        if (newMessage.receiverId === currentUserDocId) {
+            conv.unreadCount++;
+        }
+        
+        // Move conversation to top
+        conversations.splice(existingConvIndex, 1);
+        conversations.unshift(conv);
+        
+        // Update the UI for just this conversation
+        updateConversationUI(conv);
+    } else {
+        // New conversation - load user data first
+        const otherUserId = newMessage.senderId === currentUserDocId ? 
+                          newMessage.receiverId : newMessage.senderId;
+        
+        try {
+            const db = firebase.firestore();
+            const userDoc = await db.collection("users").doc(otherUserId).get();
+            const userData = userDoc.exists ? userDoc.data() : null;
+            
+            const newConversation = {
+                participantId: otherUserId,
+                messages: [newMessage],
+                unreadCount: newMessage.receiverId === currentUserDocId ? 1 : 0,
+                lastMessage: newMessage,
+                otherUserData: userData
+            };
+            
+            conversations.unshift(newConversation);
+            
+            // Add to UI without full refresh
+            addConversationToUI(newConversation);
+            
+        } catch (error) {
+            console.error("Error loading user for new conversation:", error);
+        }
+    }
+    
+    updateUnreadCount();
+}
+
+// Update single conversation in UI
+function updateConversationUI(conversation) {
+    const container = document.getElementById('conversationsList');
+    if (!container) return;
+    
+    // Find the conversation element
+    const convElements = container.getElementsByClassName('conversation-item');
+    for (let element of convElements) {
+        if (element.getAttribute('data-userid') === conversation.participantId) {
+            // Remove and re-add at beginning for proper ordering
+            element.remove();
+            
+            createConversationElement(conversation).then(newElement => {
+                newElement.setAttribute('data-userid', conversation.participantId);
+                container.insertBefore(newElement, container.firstChild);
+            });
+            break;
+        }
+    }
+}
+
+// Add new conversation to UI
+function addConversationToUI(conversation) {
+    const container = document.getElementById('conversationsList');
+    if (!container) return;
+    
+    // Remove "no conversations" message if present
+    const emptyDiv = container.querySelector('.empty-conversations');
+    if (emptyDiv) {
+        emptyDiv.remove();
+    }
+    
+    createConversationElement(conversation).then(element => {
+        element.setAttribute('data-userid', conversation.participantId);
+        container.insertBefore(element, container.firstChild);
+        
+        // Update conversation count
+        const countElement = document.getElementById('totalConversations');
+        if (countElement) {
+            countElement.textContent = conversations.length;
+        }
+    });
+}
+
+// Show subtle notification for new messages
+function showNewMessageNotification(message) {
+    // Create a subtle toast notification
     const notification = document.createElement('div');
-    notification.className = `notification ${type}`;
+    notification.className = 'message-notification';
     notification.innerHTML = `
-        <span>${message}</span>
-        <button onclick="this.parentElement.remove()">×</button>
+        <div class="notification-content">
+            <i class="fas fa-envelope"></i>
+            <span>New message received</span>
+        </div>
+    `;
+    
+    notification.style.cssText = `
+        position: fixed;
+        top: 20px;
+        right: 20px;
+        background: #4a4a6d;
+        color: white;
+        padding: 12px 20px;
+        border-radius: 8px;
+        box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+        z-index: 1000;
+        opacity: 0;
+        transform: translateY(-20px);
+        transition: all 0.3s ease;
     `;
     
     document.body.appendChild(notification);
     
+    // Animate in
     setTimeout(() => {
-        if (notification.parentElement) {
-            notification.remove();
-        }
-    }, 5000);
+        notification.style.opacity = '1';
+        notification.style.transform = 'translateY(0)';
+    }, 10);
+    
+    // Remove after 3 seconds
+    setTimeout(() => {
+        notification.style.opacity = '0';
+        notification.style.transform = 'translateY(-20px)';
+        setTimeout(() => {
+            if (notification.parentNode) {
+                notification.parentNode.removeChild(notification);
+            }
+        }, 300);
+    }, 3000);
 }
 
 // Make functions globally available
@@ -988,15 +1271,5 @@ window.closeReportModal = closeReportModal;
 window.clearConversation = clearConversation;
 window.refreshMessages = refreshMessages;
 window.attachFile = attachFile;
-window.addRecipient = addRecipient;
-window.removeRecipient = removeRecipient;
 window.toggleSidebar = toggleSidebar;
-window.logout = function() {
-    if (firebase.auth().currentUser) {
-        firebase.auth().signOut().then(() => {
-            window.location.href = 'index.html';
-        });
-    } else {
-        window.location.href = 'index.html';
-    }
-};
+window.logout = logout;

@@ -11,6 +11,135 @@
         /* Additional styles for messages page */
       
     /* Add basic styles for messages page if dashboard.css doesn't load */
+    .conversation-item {
+    display: flex;
+    align-items: center;
+    padding: 12px 15px;
+    border-bottom: 1px solid #2a2a4a;
+    cursor: pointer;
+    transition: background 0.3s;
+    position: relative;
+}
+
+.conversation-item:hover {
+    background: rgba(42, 42, 74, 0.5);
+}
+
+.conversation-item.unread {
+    background: rgba(74, 74, 109, 0.2);
+}
+
+.conversation-item.unread:hover {
+    background: rgba(74, 74, 109, 0.3);
+}
+
+.conversation-avatar {
+    position: relative;
+    margin-right: 12px;
+    flex-shrink: 0;
+}
+
+.conversation-avatar img {
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    object-fit: cover;
+    background: #4a4a6d;
+}
+
+.unread-badge {
+    position: absolute;
+    top: 0;
+    right: 0;
+    width: 10px;
+    height: 10px;
+    background: #ff4757;
+    border-radius: 50%;
+    border: 2px solid #1a1a2e;
+}
+
+.conversation-info {
+    flex: 1;
+    min-width: 0;
+    position: relative;
+}
+
+.conversation-info h4 {
+    margin: 0 0 4px 0;
+    color: white;
+    font-size: 14px;
+    font-weight: 600;
+}
+
+.message-preview {
+    margin: 0;
+    color: #aaa;
+    font-size: 13px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    width: calc(100% - 60px);
+}
+
+.message-time {
+    font-size: 11px;
+    color: #666;
+    position: absolute;
+    right: 0;
+    top: 0;
+}
+
+.unread-count {
+    background: #ff4757;
+    color: white;
+    font-size: 11px;
+    font-weight: bold;
+    width: 18px;
+    height: 18px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin-left: 10px;
+    flex-shrink: 0;
+}
+
+.empty-conversations {
+    text-align: center;
+    padding: 40px 20px;
+    color: #666;
+}
+
+.empty-conversations i {
+    font-size: 48px;
+    margin-bottom: 15px;
+    color: #4a4a6d;
+}
+
+.empty-conversations p {
+    margin: 10px 0 20px;
+}
+
+.btn-small {
+    background: #4a4a6d;
+    color: white;
+    border: none;
+    padding: 8px 16px;
+    border-radius: 5px;
+    cursor: pointer;
+    font-size: 13px;
+    transition: background 0.3s;
+}
+
+.btn-small:hover {
+    background: #5a5a7d;
+}
+
+.message-status {
+    font-size: 12px;
+    color: #aaa;
+    margin-left: 5px;
+}
     .messages-container {
         display: flex;
         height: calc(100vh - 160px);
@@ -85,6 +214,34 @@
     .close-modal:hover {
         color: white;
     }
+    .message-notification {
+    position: fixed;
+    top: 20px;
+    right: 20px;
+    background: #4a4a6d;
+    color: white;
+    padding: 12px 20px;
+    border-radius: 8px;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+    z-index: 10000;
+    opacity: 0;
+    transform: translateY(-20px);
+    transition: all 0.3s ease;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    pointer-events: none;
+}
+
+.message-notification i {
+    color: #7ee3ff;
+}
+
+.notification-content {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
 </style>
     </style>
 </head>
@@ -103,7 +260,7 @@
         
         <div class="user-profile">
             <div class="avatar">
-                <img id="userAvatar" src="https://via.placeholder.com/100" alt="Avatar">
+                <img id="userAvatar" src="after-dark-banner.jpg" alt="Avatar">
                 <span class="online-status"></span>
             </div>
             <div class="user-info">
@@ -161,7 +318,7 @@
             <div class="top-bar-actions">
                 <button class="notification-btn">
                     <i class="fas fa-bell"></i>
-                    <span class="notification-count">3</span>
+                    <span class="notification-count">0</span>
                 </button>
                 <button class="theme-toggle">
                     <i class="fas fa-moon"></i>
@@ -232,7 +389,7 @@
                         <div class="conversation-header">
                             <div class="conversation-partner">
                                 <div class="partner-avatar">
-                                    <img id="partnerAvatar" src="https://via.placeholder.com/50" alt="User">
+                                    <img id="partnerAvatar" src="after-dark-banner.jpg" alt="User">
                                     <span class="partner-online" id="partnerOnlineStatus"></span>
                                 </div>
                                 <div class="partner-info">
@@ -410,6 +567,7 @@
             </div>
         </div>
     </div>
+ 
     
 <!-- NEW: -->
 <!-- Load Firebase v8 SDK FIRST -->

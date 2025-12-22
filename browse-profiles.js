@@ -1,37 +1,88 @@
+// browse-profiles.js - Firebase v8 version
 let allProfiles = [];
 let selectedUserId = null;
 
 // Load all profiles
 async function loadProfiles() {
     try {
-        const usersRef = collection(db, "users");
-        const querySnapshot = await getDocs(usersRef);
+        console.log("Starting to load profiles...");
+        
+        const db = firebase.firestore();
+        const currentUser = firebase.auth().currentUser;
+        
+        if (!currentUser) {
+            console.error("No current user found");
+            window.location.href = 'index.html';
+            return;
+        }
+        
+        console.log("Current user UID:", currentUser.uid);
+        
+        const usersRef = db.collection("users");
+        const querySnapshot = await usersRef.get();
+        
+        console.log("Total users in database:", querySnapshot.size);
         
         allProfiles = [];
-        const currentUser = auth.currentUser;
         
         querySnapshot.forEach(doc => {
-            if (doc.id !== currentUser.uid && !doc.data().isAdmin) {
+            const userData = doc.data();
+            console.log("Processing user:", doc.id, userData.username);
+            
+            // Skip current user and admins
+            if (doc.id !== currentUser.uid && !userData.isAdmin) {
+                console.log("Adding to profiles:", userData.username);
                 allProfiles.push({
                     id: doc.id,
-                    ...doc.data()
+                    ...userData
                 });
+            } else {
+                console.log("Skipping:", doc.id === currentUser.uid ? "current user" : "admin");
             }
         });
         
+        console.log("Total profiles loaded:", allProfiles.length);
+        
+        if (allProfiles.length === 0) {
+            console.warn("No profiles found (excluding current user and admins)");
+            // Check if we have any users at all
+            querySnapshot.forEach(doc => {
+                const userData = doc.data();
+                console.log("User in DB:", doc.id, "username:", userData.username, "isAdmin:", userData.isAdmin);
+            });
+        }
+        
         displayProfiles(allProfiles);
+        
     } catch (error) {
         console.error("Error loading profiles:", error);
+        showNotification('Failed to load profiles: ' + error.message, 'error');
     }
 }
 
 // Display profiles in grid
 function displayProfiles(profiles) {
     const container = document.getElementById('profilesContainer');
+    if (!container) {
+        console.error("profilesContainer element not found!");
+        return;
+    }
+    
+    console.log("Displaying", profiles.length, "profiles");
+    
     container.innerHTML = '';
     
     if (profiles.length === 0) {
-        container.innerHTML = '<p class="no-profiles">No profiles found matching your filters.</p>';
+        container.innerHTML = `
+            <div class="no-profiles-message">
+                <i class="fas fa-users" style="font-size: 48px; margin-bottom: 20px; color: #666;"></i>
+                <h3>No profiles found</h3>
+                <p>Try adjusting your filters or check back later.</p>
+                <p style="font-size: 12px; color: #888; margin-top: 10px;">
+                    Debug: ${allProfiles.length} total users in system
+                </p>
+            </div>
+        `;
         return;
     }
     
@@ -39,10 +90,20 @@ function displayProfiles(profiles) {
         const profileCard = document.createElement('div');
         profileCard.className = 'profile-card';
         
-        // Get first photo or placeholder
-        const profilePhoto = profile.photos && profile.photos.length > 0 
-            ? profile.photos[0] 
-            : 'https://via.placeholder.com/200x200?text=No+Photo';
+        // Debug the profile data
+        console.log("Creating card for:", profile.username, "Photos:", profile.photos);
+        
+        // Get first photo or placeholder - handle both string and object formats
+        let profilePhoto = 'after-dark-banner.jpg';
+        if (profile.photos && profile.photos.length > 0) {
+            if (typeof profile.photos[0] === 'string') {
+                profilePhoto = profile.photos[0];
+            } else if (profile.photos[0] && profile.photos[0].url) {
+                profilePhoto = profile.photos[0].url;
+            }
+        }
+        
+        console.log("Using photo URL:", profilePhoto);
         
         // Position mapping for display
         const positionMap = {
@@ -53,34 +114,45 @@ function displayProfiles(profiles) {
             'B': 'Bottom'
         };
         
+        // Safely get profile data with defaults
+        const username = profile.username || 'Unknown User';
+        const age = profile.stats?.age || profile.age || 'N/A';
+        const position = profile.stats?.position || profile.position || '';
+        const status = profile.stats?.relationshipStatus || profile.relationshipStatus || '';
+        const iamInto = profile.stats?.iamInto || profile.iamInto || 'No interests listed';
+        
         profileCard.innerHTML = `
             <div class="profile-photo">
-                <img src="${profilePhoto}" alt="${profile.username}">
+                <img src="${profilePhoto}" alt="${username}" onerror="this.src='after-dark-banner.jpg'">
                 <div class="photo-count">${profile.photos?.length || 0}/5</div>
             </div>
             <div class="profile-info">
-                <h3>${profile.username}</h3>
+                <h3>${username}</h3>
                 <div class="profile-stats">
                     <div class="stat-item">
                         <span class="stat-label">Age:</span>
-                        <span class="stat-value">${profile.stats?.age || 'N/A'}</span>
+                        <span class="stat-value">${age}</span>
                     </div>
                     <div class="stat-item">
                         <span class="stat-label">Position:</span>
-                        <span class="stat-value">${positionMap[profile.stats?.position] || 'N/A'}</span>
+                        <span class="stat-value">${positionMap[position] || 'N/A'}</span>
                     </div>
                     <div class="stat-item">
                         <span class="stat-label">Status:</span>
-                        <span class="stat-value">${profile.stats?.relationshipStatus?.split(':')[0] || 'N/A'}</span>
+                        <span class="stat-value">${status.split(':')[0] || 'N/A'}</span>
                     </div>
                 </div>
                 <div class="profile-interests">
-                    <p><strong>Into:</strong> ${profile.stats?.iamInto?.substring(0, 50) || 'No interests listed'}...</p>
+                    <p><strong>Into:</strong> ${iamInto.substring(0, 50)}${iamInto.length > 50 ? '...' : ''}</p>
                 </div>
-                <button onclick="openMessageModal('${profile.id}', '${profile.username}')" class="message-btn">
-                    💬 Send Anonymous Message
-                </button>
-                <button onclick="viewProfile('${profile.id}')" class="view-btn">View Full Profile</button>
+                <div class="profile-actions">
+                    <button onclick="openMessageModal('${profile.id}', '${username.replace(/'/g, "\\'")}')" class="message-btn">
+                        <i class="fas fa-comment"></i> Message
+                    </button>
+                    <button onclick="viewProfile('${profile.id}')" class="view-btn">
+                        <i class="fas fa-eye"></i> View Profile
+                    </button>
+                </div>
             </div>
         `;
         
@@ -94,28 +166,33 @@ function applyFilters() {
     const positionFilter = document.getElementById('filterPosition').value;
     const statusFilter = document.getElementById('filterStatus').value;
     
+    console.log("Applying filters:", { ageFilter, positionFilter, statusFilter });
+    
     let filtered = [...allProfiles];
     
     if (ageFilter) {
         const [min, max] = ageFilter.split('-').map(Number);
         filtered = filtered.filter(profile => {
-            const age = profile.stats?.age;
-            return age >= min && age <= max;
+            const age = profile.stats?.age || profile.age;
+            return age && age >= min && age <= max;
         });
     }
     
     if (positionFilter) {
-        filtered = filtered.filter(profile => 
-            profile.stats?.position === positionFilter
-        );
+        filtered = filtered.filter(profile => {
+            const position = profile.stats?.position || profile.position;
+            return position === positionFilter;
+        });
     }
     
     if (statusFilter) {
-        filtered = filtered.filter(profile => 
-            profile.stats?.relationshipStatus?.startsWith(statusFilter)
-        );
+        filtered = filtered.filter(profile => {
+            const status = profile.stats?.relationshipStatus || profile.relationshipStatus;
+            return status && status.startsWith(statusFilter);
+        });
     }
     
+    console.log("After filtering:", filtered.length, "profiles");
     displayProfiles(filtered);
 }
 
@@ -129,52 +206,79 @@ function clearFilters() {
 // Open message modal
 function openMessageModal(userId, username) {
     selectedUserId = userId;
-    document.getElementById('modalUsername').textContent = username;
-    document.getElementById('messageModal').style.display = 'block';
+    const modalUsername = document.getElementById('modalUsername');
+    if (modalUsername) {
+        modalUsername.textContent = username;
+    }
+    const modal = document.getElementById('messageModal');
+    if (modal) {
+        modal.style.display = 'block';
+    }
 }
 
 function closeMessageModal() {
-    document.getElementById('messageModal').style.display = 'none';
-    document.getElementById('anonymousMessage').value = '';
+    const modal = document.getElementById('messageModal');
+    if (modal) {
+        modal.style.display = 'none';
+    }
+    const messageInput = document.getElementById('anonymousMessage');
+    if (messageInput) {
+        messageInput.value = '';
+    }
     selectedUserId = null;
 }
 
 // Send anonymous message
+// Update this function in browse-profiles.js
 async function sendMessageToUser() {
-    const message = document.getElementById('anonymousMessage').value.trim();
+    const messageInput = document.getElementById('anonymousMessage');
+    if (!messageInput) return;
+    
+    const message = messageInput.value.trim();
     
     if (!message) {
-        alert('Please enter a message');
+        showNotification('Please enter a message', 'error');
         return;
     }
     
     if (!selectedUserId) {
-        alert('No user selected');
+        showNotification('No user selected', 'error');
         return;
     }
     
     try {
-        const currentUser = auth.currentUser;
+        // USE FIREBASE V8 SYNTAX
+        const db = firebase.firestore();
+        const currentUser = firebase.auth().currentUser;
         
-        await addDoc(collection(db, "messages"), {
+        if (!currentUser) {
+            showNotification('You must be logged in to send messages', 'error');
+            return;
+        }
+        
+        // This creates/updates the "messages" collection
+        await db.collection("messages").add({
             senderId: currentUser.uid,
             receiverId: selectedUserId,
-            message: message,
-            timestamp: new Date(),
+            participants: [currentUser.uid, selectedUserId],
+            message: message,  // Use "message" field
+            content: message,   // Also add "content" field for compatibility
+            timestamp: firebase.firestore.FieldValue.serverTimestamp(),  // CORRECT timestamp
             isAnonymous: true,
-            read: false
+            read: false,
+            readBy: [currentUser.uid]  // Add readBy array
         });
         
-        alert('Message sent anonymously!');
+        showNotification('Message sent anonymously!', 'success');
         closeMessageModal();
     } catch (error) {
         console.error("Error sending message:", error);
-        alert('Failed to send message: ' + error.message);
+        showNotification('Failed to send message: ' + error.message, 'error');
     }
 }
 
 // View full profile
-async function viewProfile(userId) {
+function viewProfile(userId) {
     // Store in session storage and redirect to profile view page
     sessionStorage.setItem('viewProfileId', userId);
     window.location.href = 'view-profile.html';
@@ -182,11 +286,25 @@ async function viewProfile(userId) {
 
 // Initialize on page load
 document.addEventListener('DOMContentLoaded', () => {
-    if (auth.currentUser) {
-        loadProfiles();
-    } else {
-        window.location.href = 'index.html';
+    console.log("browse-profiles.js loaded, checking auth...");
+    
+    // Check if Firebase is loaded
+    if (typeof firebase === 'undefined') {
+        console.error("Firebase not loaded!");
+        showNotification("Firebase not loaded. Please refresh.", "error");
+        return;
     }
+    
+    // Check auth state
+    firebase.auth().onAuthStateChanged((user) => {
+        if (user) {
+            console.log("User authenticated:", user.uid);
+            loadProfiles();
+        } else {
+            console.log("No user, redirecting to index");
+            window.location.href = 'index.html';
+        }
+    });
 });
 
 // Close modal if clicking outside
@@ -196,3 +314,12 @@ window.onclick = function(event) {
         closeMessageModal();
     }
 }
+
+// Make functions globally available
+window.loadProfiles = loadProfiles;
+window.applyFilters = applyFilters;
+window.clearFilters = clearFilters;
+window.openMessageModal = openMessageModal;
+window.closeMessageModal = closeMessageModal;
+window.sendMessageToUser = sendMessageToUser;
+window.viewProfile = viewProfile;

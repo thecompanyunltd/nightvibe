@@ -139,7 +139,7 @@ function displayUsers() {
             <td><code>${user.id.substring(0, 8)}...</code></td>
             <td>
                 <div class="user-cell">
-                    <img src="${user.photos?.[0] || 'https://via.placeholder.com/30'}" alt="${user.username}">
+                    <img src="${user.photos?.[0] || 'after-dark-banner.jpg'}" alt="${user.username}">
                     <span>${user.username || 'N/A'}</span>
                 </div>
             </td>
@@ -270,7 +270,7 @@ async function viewUserDetails(userId) {
         detailContent.innerHTML = `
             <div class="user-detail-header">
                 <div class="user-avatar-large">
-                    <img src="${userData.photos?.[0] || 'https://via.placeholder.com/100'}" alt="${userData.username}">
+                    <img src="${userData.photos?.[0] || 'after-dark-banner.jpg'}" alt="${userData.username}">
                     <span class="user-status ${userData.status === 'online' ? 'online' : 'offline'}">
                         ${userData.status === 'online' ? 'Online' : 'Offline'}
                     </span>
@@ -599,12 +599,12 @@ function displayMessages() {
                 <div class="message-header">
                     <div class="message-participants">
                         <div class="participant">
-                            <img src="${senderData?.photos?.[0] || 'https://via.placeholder.com/20'}" alt="Sender">
+                            <img src="${senderData?.photos?.[0] || 'after-dark-banner.jpg'}" alt="Sender">
                             <span>${isAnonymous ? 'Anonymous' : senderData?.username || 'Unknown'}</span>
                         </div>
                         <i class="fas fa-arrow-right"></i>
                         <div class="participant">
-                            <img src="${receiverData?.photos?.[0] || 'https://via.placeholder.com/20'}" alt="Receiver">
+                            <img src="${receiverData?.photos?.[0] || 'after-dark-banner.jpg'}" alt="Receiver">
                             <span>${receiverData?.username || 'Unknown'}</span>
                         </div>
                     </div>
@@ -672,7 +672,7 @@ async function viewMessageDetails(messageId) {
                 <div class="detail-item">
                     <span class="detail-label">Sender:</span>
                     <div class="user-info">
-                        <img src="${senderData?.photos?.[0] || 'https://via.placeholder.com/30'}" alt="Sender">
+                        <img src="${senderData?.photos?.[0] || 'after-dark-banner.jpg'}" alt="Sender">
                         <div>
                             <span>${messageData.isAnonymous ? 'Anonymous' : senderData?.username || 'Unknown'}</span>
                             ${messageData.isAnonymous ? '<span class="badge warning">Anonymous</span>' : ''}
@@ -685,7 +685,7 @@ async function viewMessageDetails(messageId) {
                 <div class="detail-item">
                     <span class="detail-label">Receiver:</span>
                     <div class="user-info">
-                        <img src="${receiverData?.photos?.[0] || 'https://via.placeholder.com/30'}" alt="Receiver">
+                        <img src="${receiverData?.photos?.[0] || 'after-dark-banner.jpg'}" alt="Receiver">
                         <div>
                             <span>${receiverData?.username || 'Unknown'}</span>
                             <br>
@@ -846,12 +846,12 @@ function displayReports() {
                     <div class="report-users">
                         <div class="user-pair">
                             <div class="user">
-                                <img src="${reporterData?.photos?.[0] || 'https://via.placeholder.com/20'}" alt="Reporter">
+                                <img src="${reporterData?.photos?.[0] || 'after-dark-banner.jpg'}" alt="Reporter">
                                 <span>${reporterData?.username || 'Unknown'}</span>
                             </div>
                             <i class="fas fa-flag"></i>
                             <div class="user">
-                                <img src="${reportedData?.photos?.[0] || 'https://via.placeholder.com/20'}" alt="Reported">
+                                <img src="${reportedData?.photos?.[0] || 'after-dark-banner.jpg'}" alt="Reported">
                                 <span>${reportedData?.username || 'Unknown'}</span>
                             </div>
                         </div>
@@ -929,7 +929,7 @@ async function viewReportDetails(reportId) {
                 <div class="detail-section">
                     <h4>Reporter</h4>
                     <div class="user-detail">
-                        <img src="${reporterData?.photos?.[0] || 'https://via.placeholder.com/40'}" alt="Reporter">
+                        <img src="${reporterData?.photos?.[0] || 'after-dark-banner.jpg'}" alt="Reporter">
                         <div>
                             <strong>${reporterData?.username || 'Unknown'}</strong>
                             <p>ID: ${reportData.reporterId}</p>
@@ -941,7 +941,7 @@ async function viewReportDetails(reportId) {
                 <div class="detail-section">
                     <h4>Reported User</h4>
                     <div class="user-detail">
-                        <img src="${reportedData?.photos?.[0] || 'https://via.placeholder.com/40'}" alt="Reported">
+                        <img src="${reportedData?.photos?.[0] || 'after-dark-banner.jpg'}" alt="Reported">
                         <div>
                             <strong>${reportedData?.username || 'Unknown'}</strong>
                             <p>ID: ${reportData.reportedUserId}</p>
