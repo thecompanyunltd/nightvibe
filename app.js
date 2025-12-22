@@ -161,7 +161,11 @@ async function handleLogin(e) {
         
         showNotification('Welcome back!', 'success');
         
-        // The auth state change listener will handle redirection
+        // Ensure window.currentUser is set immediately and redirect based on profile state
+        window.currentUser = userCredential.user;
+        redirectAfterLogin(userCredential.user.uid).catch(err => console.warn('Redirect after login failed:', err));
+        
+        // The auth state change listener will also run and keep state in sync
         
     } catch (error) {
         console.error('Login error:', error);
@@ -189,6 +193,36 @@ async function handleLogin(e) {
         // Clear password field on error
         document.getElementById('loginPassword').value = '';
     }
+}
+
+// Redirect helper used after successful login
+async function redirectAfterLogin(uid) {
+    try {
+        const userDoc = await db.collection('users').doc(uid).get();
+        if (userDoc.exists) {
+            const userData = userDoc.data();
+            // Decide destination
+            if (userData.isAdmin) {
+                window.location.href = 'admin.html';
+                return;
+            }
+            if (!userData.photos || userData.photos.length < 5) {
+                window.location.href = 'upload-photos.html';
+                return;
+            }
+            window.location.href = 'dashboard.html';
+            return;
+        } else {
+            // No user doc — send to upload flow to create profile
+            window.location.href = 'upload-photos.html';
+            return;
+        }
+    } catch (error) {
+        console.error('Error in redirectAfterLogin:', error);
+        // As a safe fallback go to dashboard
+        window.location.href = 'dashboard.html';
+    }
+}
 }
 
 // Handle registration
