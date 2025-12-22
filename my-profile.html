@@ -1,0 +1,691 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>My Profile | NightVibe</title>
+    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="dashboard.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+<style>
+    /* Add basic styles for profile page */
+    .profile-content {
+        padding: 20px;
+    }
+    
+    .profile-cover {
+        height: 200px;
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        border-radius: 10px;
+        position: relative;
+        margin-bottom: 100px;
+    }
+    
+    .profile-avatar-section {
+        display: flex;
+        align-items: flex-end;
+        position: relative;
+        margin-top: -50px;
+        padding-left: 30px;
+    }
+    
+    .profile-avatar {
+        position: relative;
+        width: 150px;
+        height: 150px;
+        border-radius: 50%;
+        overflow: hidden;
+        border: 5px solid #1a1a2e;
+        background: #2a2a4a;
+    }
+    
+    .profile-avatar img {
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+    }
+    
+    .change-avatar-btn {
+        position: absolute;
+        bottom: 10px;
+        right: 10px;
+        background: #4CAF50;
+        border: none;
+        width: 40px;
+        height: 40px;
+        border-radius: 50%;
+        color: white;
+        cursor: pointer;
+    }
+    
+    .profile-name-section {
+        margin-left: 30px;
+        margin-bottom: 20px;
+    }
+    
+    .photos-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+        gap: 15px;
+        margin-top: 15px;
+    }
+    
+    .photo-item {
+        position: relative;
+        aspect-ratio: 1;
+        border-radius: 8px;
+        overflow: hidden;
+    }
+    
+    .photo-item img {
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+    }
+    
+    .photo-actions {
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background: rgba(0,0,0,0.7);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 10px;
+        opacity: 0;
+        transition: opacity 0.3s;
+    }
+    
+    .photo-item:hover .photo-actions {
+        opacity: 1;
+    }
+    
+    .photo-action-btn {
+        background: white;
+        border: none;
+        width: 40px;
+        height: 40px;
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        cursor: pointer;
+    }
+    
+    .modal {
+        display: none;
+        position: fixed;
+        z-index: 1000;
+        left: 0;
+        top: 0;
+        width: 100%;
+        height: 100%;
+        background-color: rgba(0,0,0,0.8);
+    }
+    
+    .modal-content {
+        background-color: #1a1a2e;
+        margin: 10% auto;
+        padding: 20px;
+        border: 1px solid #2a2a4a;
+        width: 80%;
+        max-width: 500px;
+        border-radius: 10px;
+        color: white;
+    }
+    
+    .close-modal {
+        color: #aaa;
+        float: right;
+        font-size: 28px;
+        font-weight: bold;
+        cursor: pointer;
+    }
+    
+    .close-modal:hover {
+        color: white;
+    }
+    
+    .notification {
+        position: fixed;
+        top: 20px;
+        right: 20px;
+        padding: 15px 20px;
+        border-radius: 8px;
+        background: white;
+        color: #333;
+        z-index: 1000;
+        box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+        animation: slideIn 0.3s ease;
+    }
+    
+    @keyframes slideIn {
+        from { transform: translateX(100%); opacity: 0; }
+        to { transform: translateX(0); opacity: 1; }
+    }
+    </style>
+
+</head>
+<body class="dashboard-page">
+    <!-- Navigation Sidebar -->
+    <nav class="sidebar">
+        <div class="sidebar-header">
+            <div class="logo">
+                <i class="fas fa-mask"></i>
+                <h2>NightVibe</h2>
+            </div>
+            <button class="menu-toggle" onclick="toggleSidebar()">
+                <i class="fas fa-bars"></i>
+            </button>
+        </div>
+        
+        <div class="user-profile">
+            <div class="avatar">
+                <img id="userAvatar" src="https://via.placeholder.com/100" alt="Avatar">
+                <span class="online-status"></span>
+            </div>
+            <div class="user-info">
+                <h3 id="userName">Loading...</h3>
+                <p id="userStatus">Online</p>
+            </div>
+        </div>
+        
+        <div class="sidebar-menu">
+            <a href="dashboard.html" class="menu-item">
+                <i class="fas fa-home"></i>
+                <span>Dashboard</span>
+            </a>
+            <a href="my-profile.html" class="menu-item active">
+                <i class="fas fa-user"></i>
+                <span>My Profile</span>
+            </a>
+            <a href="browse-profiles.html" class="menu-item">
+                <i class="fas fa-users"></i>
+                <span>Browse Profiles</span>
+                <span class="menu-badge" id="onlineCount">0</span>
+            </a>
+            <a href="messages.html" class="menu-item">
+                <i class="fas fa-envelope"></i>
+                <span>Messages</span>
+                <span class="menu-badge" id="unreadCount">0</span>
+            </a>
+            <a href="#" class="menu-item">
+                <i class="fas fa-heart"></i>
+                <span>Matches</span>
+            </a>
+            <a href="#" class="menu-item">
+                <i class="fas fa-cog"></i>
+                <span>Settings</span>
+            </a>
+        </div>
+        
+        <div class="sidebar-footer">
+            <button class="logout-btn" onclick="logout()">
+                <i class="fas fa-sign-out-alt"></i>
+                <span>Logout</span>
+            </button>
+        </div>
+    </nav>
+    
+    <!-- Main Content -->
+    <main class="main-content">
+        <!-- Top Bar -->
+        <header class="top-bar">
+            <div class="search-bar">
+                <i class="fas fa-search"></i>
+                <input type="text" placeholder="Search profiles, messages...">
+            </div>
+            
+            <div class="top-bar-actions">
+                <button class="notification-btn">
+                    <i class="fas fa-bell"></i>
+                    <span class="notification-count">3</span>
+                </button>
+                <button class="theme-toggle">
+                    <i class="fas fa-moon"></i>
+                </button>
+            </div>
+        </header>
+        
+        <!-- Profile Content -->
+        <div class="profile-content">
+            <!-- Profile Header -->
+            <div class="profile-header">
+                <div class="profile-cover">
+                    <div class="cover-overlay"></div>
+                    <button class="edit-cover-btn">
+                        <i class="fas fa-camera"></i> Change Cover
+                    </button>
+                </div>
+                
+                <div class="profile-info-header">
+                    <div class="profile-avatar-section">
+                        <div class="profile-avatar">
+                            <img id="mainAvatar" src="https://via.placeholder.com/150" alt="Profile Photo">
+                            <button class="change-avatar-btn" onclick="openAvatarUpload()">
+                                <i class="fas fa-camera"></i>
+                            </button>
+                        </div>
+                        <div class="profile-name-section">
+                            <h1 id="profileUsername">Loading...</h1>
+                            <div class="profile-meta">
+                                <span class="meta-item">
+                                    <i class="fas fa-user-friends"></i>
+                                    <span id="profileFollowers">0</span> followers
+                                </span>
+                                <span class="meta-item">
+                                    <i class="fas fa-eye"></i>
+                                    <span id="profileViews">0</span> views
+                                </span>
+                                <span class="meta-item">
+                                    <i class="fas fa-star"></i>
+                                    <span id="profileRating">0.0</span> rating
+                                </span>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="profile-actions">
+                        <button class="btn-primary" onclick="editProfile()">
+                            <i class="fas fa-edit"></i> Edit Profile
+                        </button>
+                        <button class="btn-secondary" onclick="shareProfile()">
+                            <i class="fas fa-share-alt"></i> Share
+                        </button>
+                        <button class="btn-danger" onclick="viewAsOthers()">
+                            <i class="fas fa-eye"></i> View as Others
+                        </button>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Profile Stats -->
+            <div class="profile-stats-cards">
+                <div class="stat-card">
+                    <div class="stat-icon">
+                        <i class="fas fa-envelope-open-text"></i>
+                    </div>
+                    <div class="stat-info">
+                        <h3 id="totalMessages">0</h3>
+                        <p>Total Messages</p>
+                    </div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-icon">
+                        <i class="fas fa-heart"></i>
+                    </div>
+                    <div class="stat-info">
+                        <h3 id="totalLikes">0</h3>
+                        <p>Likes Received</p>
+                    </div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-icon">
+                        <i class="fas fa-calendar-alt"></i>
+                    </div>
+                    <div class="stat-info">
+                        <h3 id="memberDays">0</h3>
+                        <p>Days Active</p>
+                    </div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-icon">
+                        <i class="fas fa-shield-alt"></i>
+                    </div>
+                    <div class="stat-info">
+                        <h3 id="privacyScore">100%</h3>
+                        <p>Privacy Score</p>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Main Profile Content -->
+            <div class="profile-main-content">
+                <!-- Left Column - Photos & Info -->
+                <div class="profile-left-column">
+                    <!-- Photos Section -->
+                    <div class="photos-section">
+                        <div class="section-header">
+                            <h2>My Photos</h2>
+                            <button class="btn-small" onclick="openPhotoUpload()">
+                                <i class="fas fa-plus"></i> Add Photos
+                            </button>
+                        </div>
+                        <div class="photos-grid" id="photosGrid">
+                            <!-- Photos will be loaded here -->
+                        </div>
+                        <div class="photos-info">
+                            <p><i class="fas fa-info-circle"></i> You need at least 5 photos to be visible to others</p>
+                        </div>
+                    </div>
+                    
+                    <!-- Personal Information -->
+                    <div class="info-section">
+                        <div class="section-header">
+                            <h2>Personal Information</h2>
+                        </div>
+                        <div class="info-grid">
+                            <div class="info-item">
+                                <span class="info-label">Age:</span>
+                                <span class="info-value" id="infoAge">Loading...</span>
+                            </div>
+                            <div class="info-item">
+                                <span class="info-label">Position:</span>
+                                <span class="info-value" id="infoPosition">Loading...</span>
+                            </div>
+                            <div class="info-item">
+                                <span class="info-label">Status:</span>
+                                <span class="info-value" id="infoStatus">Loading...</span>
+                            </div>
+                            <div class="info-item">
+                                <span class="info-label">Member Since:</span>
+                                <span class="info-value" id="infoMemberSince">Loading...</span>
+                            </div>
+                            <div class="info-item">
+                                <span class="info-label">Last Active:</span>
+                                <span class="info-value" id="infoLastActive">Loading...</span>
+                            </div>
+                            <div class="info-item">
+                                <span class="info-label">Real Name:</span>
+                                <span class="info-value admin-only" id="infoRealName">Hidden</span>
+                            </div>
+                            <div class="info-item">
+                                <span class="info-label">Phone:</span>
+                                <span class="info-value admin-only" id="infoPhone">Hidden</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Right Column - About & Preferences -->
+                <div class="profile-right-column">
+                    <!-- About Me -->
+                    <div class="about-section">
+                        <div class="section-header">
+                            <h2>About Me</h2>
+                            <button class="btn-small" onclick="editAbout()">
+                                <i class="fas fa-edit"></i> Edit
+                            </button>
+                        </div>
+                        <div class="about-content" id="aboutContent">
+                            <p class="empty-state">No information added yet. Click edit to add something about yourself.</p>
+                        </div>
+                    </div>
+                    
+                    <!-- Interests -->
+                    <div class="interests-section">
+                        <div class="section-header">
+                            <h2>I'm Into</h2>
+                            <button class="btn-small" onclick="editInterests()">
+                                <i class="fas fa-edit"></i> Edit
+                            </button>
+                        </div>
+                        <div class="interests-content" id="interestsContent">
+                            <p class="empty-state">No interests added yet.</p>
+                        </div>
+                    </div>
+                    
+                    <!-- Preferences -->
+                    <div class="preferences-section">
+                        <div class="section-header">
+                            <h2>Privacy & Preferences</h2>
+                            <button class="btn-small" onclick="editPreferences()">
+                                <i class="fas fa-edit"></i> Edit
+                            </button>
+                        </div>
+                        <div class="preferences-list">
+                            <div class="preference-item">
+                                <span>Show my age to others</span>
+                                <label class="toggle-switch">
+                                    <input type="checkbox" id="toggleAge" checked>
+                                    <span class="slider"></span>
+                                </label>
+                            </div>
+                            <div class="preference-item">
+                                <span>Show relationship status</span>
+                                <label class="toggle-switch">
+                                    <input type="checkbox" id="toggleStatus" checked>
+                                    <span class="slider"></span>
+                                </label>
+                            </div>
+                            <div class="preference-item">
+                                <span>Allow anonymous messages</span>
+                                <label class="toggle-switch">
+                                    <input type="checkbox" id="toggleMessages" checked>
+                                    <span class="slider"></span>
+                                </label>
+                            </div>
+                            <div class="preference-item">
+                                <span>Show online status</span>
+                                <label class="toggle-switch">
+                                    <input type="checkbox" id="toggleOnline" checked>
+                                    <span class="slider"></span>
+                                </label>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Account Actions -->
+                    <div class="account-section">
+                        <div class="section-header">
+                            <h2>Account</h2>
+                        </div>
+                        <div class="account-actions">
+                            <button class="btn-account" onclick="changePassword()">
+                                <i class="fas fa-key"></i> Change Password
+                            </button>
+                            <button class="btn-account" onclick="downloadData()">
+                                <i class="fas fa-download"></i> Download My Data
+                            </button>
+                            <button class="btn-account danger" onclick="deleteAccount()">
+                                <i class="fas fa-trash-alt"></i> Delete Account
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </main>
+    
+    <!-- Edit Profile Modal -->
+    <div id="editProfileModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>Edit Profile</h2>
+                <span class="close-modal" onclick="closeEditModal()">&times;</span>
+            </div>
+            <div class="modal-body">
+                <form id="editProfileForm">
+                    <div class="form-group">
+                        <label for="editAge">Age</label>
+                        <input type="number" id="editAge" min="18" max="65" required>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="editPosition">Position Preference</label>
+                        <select id="editPosition" required>
+                            <option value="T">T (Top)</option>
+                            <option value="TV">TV (Versatile Top)</option>
+                            <option value="V">V (Versatile)</option>
+                            <option value="BV">BV (Versatile Bottom)</option>
+                            <option value="B">B (Bottom)</option>
+                        </select>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="editStatus">Relationship Status</label>
+                        <select id="editStatus" required>
+                            <option value="Single">Single: Unattached</option>
+                            <option value="Dating">Dating: Actively seeing someone</option>
+                            <option value="Engaged">Engaged: Pre-marriage commitment</option>
+                            <option value="Married">Married: Legally bound</option>
+                            <option value="Separated">Separated: Legally or physically apart from spouse</option>
+                            <option value="Divorced">Divorced: Marriage officially ended</option>
+                            <option value="Widowed">Widowed: Spouse has passed away</option>
+                            <option value="ItsComplicated">It's Complicated: Vague</option>
+                            <option value="Situationship">Situationship: Unclear, undefined connection</option>
+                            <option value="FWB">Friends with Benefits (FWB)</option>
+                            <option value="CasualDating">Casual Dating: Seeing someone without exclusivity</option>
+                            <option value="Exclusive">Exclusive: Committed but not married/engaged</option>
+                            <option value="OpenRelationship">Open Relationship</option>
+                            <option value="Polyamorous">Polyamorous: Consensual multiple relationships</option>
+                        </select>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="editAbout">About Me</label>
+                        <textarea id="editAbout" rows="4" placeholder="Tell others about yourself"></textarea>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="editInterests">I'm Into</label>
+                        <textarea id="editInterests" rows="4" placeholder="Your interests, hobbies, preferences"></textarea>
+                    </div>
+                    
+                    <div class="form-actions">
+                        <button type="button" class="btn-secondary" onclick="closeEditModal()">Cancel</button>
+                        <button type="submit" class="btn-primary">Save Changes</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Photo Upload Modal -->
+    <div id="photoUploadModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>Upload Photos</h2>
+                <span class="close-modal" onclick="closePhotoModal()">&times;</span>
+            </div>
+            <div class="modal-body">
+                <div class="upload-area" id="uploadArea">
+                    <i class="fas fa-cloud-upload-alt"></i>
+                    <p>Drag & drop photos here or click to browse</p>
+                    <input type="file" id="photoInput" accept="image/*" multiple style="display: none;">
+                    <button class="btn-primary" onclick="document.getElementById('photoInput').click()">
+                        Browse Files
+                    </button>
+                </div>
+                
+                <div class="upload-progress" id="uploadProgress" style="display: none;">
+                    <div class="progress-bar">
+                        <div class="progress-fill" id="progressFill"></div>
+                    </div>
+                    <p id="progressText">Uploading...</p>
+                </div>
+                
+                <div class="uploaded-photos" id="uploadedPhotos">
+                    <!-- Uploaded photos preview will appear here -->
+                </div>
+                
+                <div class="upload-info">
+                    <p><i class="fas fa-info-circle"></i> You can upload up to 10 photos. Minimum 5 required.</p>
+                    <p><i class="fas fa-exclamation-triangle"></i> Please ensure photos are appropriate and follow community guidelines.</p>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+<!-- Load Firebase v8 SDK FIRST -->
+<script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
+<script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-auth.js"></script>
+<script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-firestore.js"></script>
+
+<!-- Then load your config (CORRECT FILE NAME: firebase-config.js NOT firebase-config.jds) -->
+<script src="firebase-config.js"></script>
+
+<!-- Then load app.js -->
+<script src="app.js"></script>
+
+<!-- Finally load my-profile.js -->
+<script src="my-profile.js"></script>
+
+<script>
+    // Cloudinary Configuration - directly in the HTML instead of module import
+    window.CLOUDINARY_CONFIG = {
+        CLOUDINARY_CLOUD_NAME: 'do71fxllc',
+        CLOUDINARY_UPLOAD_PRESET: 'nightvibe_upload'
+    };
+    
+    // Simple toggle sidebar function
+    function toggleSidebar() {
+        const sidebar = document.querySelector('.sidebar');
+        if (sidebar) {
+            sidebar.classList.toggle('active');
+        }
+    }
+    
+    // Simple logout function
+    function logout() {
+        if (firebase.auth().currentUser) {
+            firebase.auth().signOut().then(() => {
+                window.location.href = 'index.html';
+            }).catch(error => {
+                console.error('Logout error:', error);
+                alert('Logout failed: ' + error.message);
+            });
+        } else {
+            window.location.href = 'index.html';
+        }
+    }
+    
+    // Make basic functions available globally
+    window.toggleSidebar = toggleSidebar;
+    window.logout = logout;
+</script>
+<script>
+    // Immediate click handlers to prevent errors before JS loads
+    document.addEventListener('DOMContentLoaded', function() {
+        // Add immediate handlers for critical buttons
+        const editProfileBtn = document.querySelector('button[onclick="editProfile()"]');
+        if (editProfileBtn) {
+            editProfileBtn.onclick = function() {
+                if (typeof editProfile === 'function') {
+                    editProfile();
+                } else {
+                    alert('Please wait for page to fully load');
+                }
+            };
+        }
+        
+        const openPhotoUploadBtn = document.querySelector('button[onclick="openPhotoUpload()"]');
+        if (openPhotoUploadBtn) {
+            openPhotoUploadBtn.onclick = function() {
+                if (typeof openPhotoUpload === 'function') {
+                    openPhotoUpload();
+                } else {
+                    alert('Please wait for page to fully load');
+                }
+            };
+        }
+        
+        const openAvatarUploadBtn = document.querySelector('button[onclick="openAvatarUpload()"]');
+        if (openAvatarUploadBtn) {
+            openAvatarUploadBtn.onclick = function() {
+                if (typeof openAvatarUpload === 'function') {
+                    openAvatarUpload();
+                } else {
+                    alert('Please wait for page to fully load');
+                }
+            };
+        }
+        
+        const editAboutBtn = document.querySelector('button[onclick="editAbout()"]');
+        if (editAboutBtn) {
+            editAboutBtn.onclick = function() {
+                if (typeof editAbout === 'function') {
+                    editAbout();
+                } else {
+                    alert('Please wait for page to fully load');
+                }
+            };
+        }
+    });
+    
+    console.log("My Profile page loaded");
+</script>
+</body>
+</html>

@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Register</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="container">
+        <h2>Register</h2>
+<!-- Enhanced Registration Form -->
+<form id="registerForm">
+    <!-- Basic Information -->
+    <div class="registration-step">
+        <h3>Basic Information</h3>
+        
+        <div class="form-group">
+            <label for="username">Username:</label>
+            <input type="text" id="username" placeholder="Choose a username" required>
+            <span class="form-helper">This will be your public display name</span>
+        </div>
+        
+        <div class="form-group">
+            <label for="password">Password:</label>
+            <input type="password" id="password" placeholder="Create a password" required>
+            <span class="form-helper">At least 8 characters</span>
+        </div>
+        
+        <div class="form-group">
+            <label for="realName">Real Name:</label>
+            <input type="text" id="realName" placeholder="Your full name" required>
+            <span class="form-helper">For admin verification only (not public)</span>
+        </div>
+        
+        <div class="form-group">
+            <label for="phone">Phone Number:</label>
+            <input type="tel" id="phone" placeholder="Your phone number" required>
+            <span class="form-helper">For security purposes only</span>
+        </div>
+    </div>
+    
+    <!-- Profile Information -->
+    <div class="stats-section">
+        <h3>Profile Information</h3>
+        
+        <div class="form-group">
+            <label for="age">Age:</label>
+            <input type="number" id="age" min="18" max="65" placeholder="Enter your age" required>
+            <div class="age-range">
+                <span>Must be between 18-65</span>
+            </div>
+        </div>
+        
+        <div class="form-group">
+            <label for="position">Position Preference:</label>
+            <select id="position" required>
+                <option value="">Select Position</option>
+                <option value="T">T (Top)</option>
+                <option value="TV">TV (Versatile Top)</option>
+                <option value="V">V (Versatile)</option>
+                <option value="BV">BV (Versatile Bottom)</option>
+                <option value="B">B (Bottom)</option>
+            </select>
+            <span class="form-helper">Your preferred role</span>
+        </div>
+        
+        <div class="form-group">
+            <label for="iamInto">I am into:</label>
+            <textarea id="iamInto" placeholder="Describe your interests, hobbies, what you're looking for..." rows="3" maxlength="500"></textarea>
+            <div class="char-counter">0/500</div>
+            <span class="form-helper">What are you interested in? (optional)</span>
+        </div>
+        
+        <div class="form-group">
+            <label for="relationshipStatus">Relationship Status:</label>
+            <select id="relationshipStatus" required>
+                <option value="">Select Status</option>
+                <option value="Single">Single: Unattached</option>
+                <option value="Dating">Dating: Actively seeing someone</option>
+                <option value="Engaged">Engaged: Pre-marriage commitment</option>
+                <option value="Married">Married: Legally bound</option>
+                <option value="Separated">Separated: Legally or physically apart from spouse</option>
+                <option value="Divorced">Divorced: Marriage officially ended</option>
+                <option value="Widowed">Widowed: Spouse has passed away</option>
+                <option value="ItsComplicated">It's Complicated: Vague</option>
+                <option value="Situationship">Situationship: Unclear, undefined connection</option>
+                <option value="FWB">Friends with Benefits (FWB)</option>
+                <option value="CasualDating">Casual Dating: Seeing someone without exclusivity</option>
+                <option value="Exclusive">Exclusive: Committed but not married/engaged</option>
+                <option value="OpenRelationship">Open Relationship</option>
+                <option value="Polyamorous">Polyamorous: Consensual multiple relationships</option>
+            </select>
+        </div>
+    </div>
+    
+    <button type="submit">Complete Registration</button>
+</form>
+        <p>Already have an account? <a href="index.html">Login</a></p>
+    </div>
+    <script src="firebase-config.js"></script>
+    <script src="app.js"></script>
+</body>
+</html>

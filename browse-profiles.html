@@ -1,0 +1,74 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Browse Profiles</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="container">
+        <header class="main-header">
+            <h1>Browse Profiles</h1>
+            <nav>
+                <a href="dashboard.html">Dashboard</a>
+                <a href="my-profile.html">My Profile</a>
+                <button onclick="logout()" class="logout-btn">Logout</button>
+            </nav>
+        </header>
+        
+        <div class="filters">
+            <h3>Filter Profiles</h3>
+            <div class="filter-grid">
+                <select id="filterAge">
+                    <option value="">All Ages</option>
+                    <option value="18-25">18-25</option>
+                    <option value="26-35">26-35</option>
+                    <option value="36-45">36-45</option>
+                    <option value="46-55">46-55</option>
+                    <option value="56-65">56-65</option>
+                </select>
+                
+                <select id="filterPosition">
+                    <option value="">All Positions</option>
+                    <option value="T">T (Top)</option>
+                    <option value="TV">TV (Versatile Top)</option>
+                    <option value="V">V (Versatile)</option>
+                    <option value="BV">BV (Versatile Bottom)</option>
+                    <option value="B">B (Bottom)</option>
+                </select>
+                
+                <select id="filterStatus">
+                    <option value="">All Relationship Statuses</option>
+                    <option value="Single">Single</option>
+                    <option value="Dating">Dating</option>
+                    <option value="CasualDating">Casual Dating</option>
+                    <option value="Exclusive">Exclusive</option>
+                    <option value="OpenRelationship">Open Relationship</option>
+                </select>
+                
+                <button onclick="applyFilters()" class="filter-btn">Apply Filters</button>
+                <button onclick="clearFilters()" class="clear-btn">Clear Filters</button>
+            </div>
+        </div>
+        
+        <div class="profiles-grid" id="profilesContainer">
+            <!-- Profile cards will be loaded here -->
+        </div>
+        
+        <!-- Message Modal -->
+        <div id="messageModal" class="modal">
+            <div class="modal-content">
+                <span class="close-modal" onclick="closeMessageModal()">&times;</span>
+                <h3>Send Anonymous Message to <span id="modalUsername"></span></h3>
+                <textarea id="anonymousMessage" placeholder="Type your anonymous message here..." rows="6"></textarea>
+                <button onclick="sendMessageToUser()" class="send-btn">Send Anonymously</button>
+            </div>
+        </div>
+    </div>
+    
+    <script src="firebase-config.js"></script>
+    <script src="app.js"></script>
+    <script src="browse-profiles.js"></script>
+</body>
+</html>

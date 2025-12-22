@@ -1,0 +1,723 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dashboard | NightVibe</title>
+    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="dashboard.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        /* Add fallback styles if dashboard.css doesn't load */
+        .dashboard-page {
+            display: flex;
+            min-height: 100vh;
+            background: #0f0f1a;
+            color: white;
+            font-family: Arial, sans-serif;
+        }
+        
+        .sidebar {
+            width: 280px;
+            background: #1a1a2e;
+            border-right: 1px solid #2a2a4a;
+            display: flex;
+            flex-direction: column;
+        }
+        
+        .main-content {
+            flex: 1;
+            padding: 20px;
+            overflow-y: auto;
+        }
+        
+        /* Basic notification fallback */
+        .notification {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            padding: 15px 20px;
+            border-radius: 8px;
+            background: white;
+            color: #333;
+            z-index: 1000;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+        }
+    </style>
+</head>
+<body class="dashboard-page">
+    <!-- Navigation Sidebar -->
+    <nav class="sidebar">
+        <div class="sidebar-header">
+            <div class="logo">
+                <i class="fas fa-mask"></i>
+                <h2>NightVibe</h2>
+            </div>
+            <button class="menu-toggle" onclick="toggleSidebar()">
+                <i class="fas fa-bars"></i>
+            </button>
+        </div>
+        
+        <div class="user-profile">
+            <div class="avatar">
+                <img id="userAvatar" src="https://via.placeholder.com/100" alt="Avatar">
+                <span class="online-status"></span>
+            </div>
+            <div class="user-info">
+                <h3 id="userName">Loading...</h3>
+                <p id="userStatus">Online</p>
+            </div>
+        </div>
+        
+        <div class="sidebar-menu">
+            <a href="dashboard.html" class="menu-item active">
+                <i class="fas fa-home"></i>
+                <span>Dashboard</span>
+            </a>
+            <a href="my-profile.html" class="menu-item">
+                <i class="fas fa-user"></i>
+                <span>My Profile</span>
+            </a>
+            <a href="browse-profiles.html" class="menu-item">
+                <i class="fas fa-users"></i>
+                <span>Browse Profiles</span>
+                <span class="menu-badge" id="onlineCount">0</span>
+            </a>
+            <a href="messages.html" class="menu-item">
+                <i class="fas fa-envelope"></i>
+                <span>Messages</span>
+                <span class="menu-badge" id="unreadCount">0</span>
+            </a>
+            <a href="upload-photos.html" class="menu-item">
+                <i class="fas fa-camera"></i>
+                <span>Add Photos</span>
+            </a>
+            <a href="#" class="menu-item" onclick="showSettings()">
+                <i class="fas fa-cog"></i>
+                <span>Settings</span>
+            </a>
+        </div>
+        
+        <div class="sidebar-footer">
+            <button class="logout-btn" onclick="logout()">
+                <i class="fas fa-sign-out-alt"></i>
+                <span>Logout</span>
+            </button>
+        </div>
+    </nav>
+    
+    <!-- Main Content -->
+    <main class="main-content">
+        <!-- Top Bar -->
+        <header class="top-bar">
+            <div class="search-bar">
+                <i class="fas fa-search"></i>
+                <input type="text" placeholder="Search profiles, messages...">
+            </div>
+            
+            <div class="top-bar-actions">
+                <button class="notification-btn" onclick="showNotifications()">
+                    <i class="fas fa-bell"></i>
+                    <span class="notification-count">0</span>
+                </button>
+                <button class="theme-toggle" onclick="toggleTheme()">
+                    <i class="fas fa-moon"></i>
+                </button>
+            </div>
+        </header>
+        
+        <!-- Dashboard Content -->
+        <div class="dashboard-content">
+            <div class="welcome-section">
+                <h1>Welcome back, <span id="welcomeName">User</span>! 👋</h1>
+                <p>Discover new connections and chat anonymously</p>
+            </div>
+            
+            <!-- Quick Stats -->
+            <div class="quick-stats">
+                <div class="stat-card">
+                    <div class="stat-icon">
+                        <i class="fas fa-eye"></i>
+                    </div>
+                    <div class="stat-info">
+                        <h3 id="profileViews">0</h3>
+                        <p>Profile Views</p>
+                    </div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-icon">
+                        <i class="fas fa-envelope-open-text"></i>
+                    </div>
+                    <div class="stat-info">
+                        <h3 id="messagesReceived">0</h3>
+                        <p>Messages</p>
+                    </div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-icon">
+                        <i class="fas fa-heart"></i>
+                    </div>
+                    <div class="stat-info">
+                        <h3 id="likesReceived">0</h3>
+                        <p>Likes</p>
+                    </div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-icon">
+                        <i class="fas fa-star"></i>
+                    </div>
+                    <div class="stat-info">
+                        <h3 id="matchScore">0%</h3>
+                        <p>Match Score</p>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Quick Actions -->
+            <div class="quick-actions">
+                <h2>Quick Actions</h2>
+                <div class="actions-grid">
+                    <a href="browse-profiles.html" class="action-card purple">
+                        <i class="fas fa-users"></i>
+                        <h3>Browse Profiles</h3>
+                        <p>Discover new people</p>
+                    </a>
+                    <a href="my-profile.html" class="action-card blue">
+                        <i class="fas fa-user-edit"></i>
+                        <h3>Edit Profile</h3>
+                        <p>Update your info</p>
+                    </a>
+                    <a href="messages.html" class="action-card pink">
+                        <i class="fas fa-comment-dots"></i>
+                        <h3>Check Messages</h3>
+                        <p>Read your chats</p>
+                    </a>
+                    <a href="upload-photos.html" class="action-card orange">
+                        <i class="fas fa-camera"></i>
+                        <h3>Add Photos</h3>
+                        <p>Upload new pictures</p>
+                    </a>
+                </div>
+            </div>
+            
+            <!-- Recent Activity -->
+            <div class="recent-activity">
+                <div class="activity-header">
+                    <h2>Recent Activity</h2>
+                    <a href="#" class="view-all" onclick="viewAllActivity()">View All</a>
+                </div>
+                <div class="activity-list" id="activityList">
+                    <div class="activity-item">
+                        <i class="fas fa-info-circle"></i>
+                        <p>Loading activities...</p>
+                        <span class="activity-time">Just now</span>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Suggested Profiles -->
+            <div class="suggested-profiles">
+                <div class="suggested-header">
+                    <h2>People You Might Like</h2>
+                    <a href="browse-profiles.html" class="view-all">Browse All</a>
+                </div>
+                <div class="profiles-grid" id="suggestedProfiles">
+                    <div class="profile-card placeholder">
+                        <div class="profile-avatar">
+                            <i class="fas fa-user"></i>
+                        </div>
+                        <p>Loading suggestions...</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </main>
+    
+    <!-- Right Sidebar (Chat Preview) -->
+    <aside class="right-sidebar">
+        <div class="chat-preview">
+            <h3>Recent Conversations</h3>
+            <div class="conversation-list" id="conversationList">
+                <div class="conversation-item">
+                    <i class="fas fa-comment"></i>
+                    <p>No conversations yet</p>
+                </div>
+            </div>
+        </div>
+        
+        <div class="online-users">
+            <h3>Online Now <span class="online-count">(0)</span></h3>
+            <div class="users-list" id="onlineUsers">
+                <div class="user-item">
+                    <i class="fas fa-user-friends"></i>
+                    <p>Loading online users...</p>
+                </div>
+            </div>
+        </div>
+    </aside>
+    
+    <!-- Load Firebase v8 SDK -->
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-auth.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-firestore.js"></script>
+    
+    <!-- Firebase config (make sure this initializes Firebase) -->
+    <script src="firebase-config.js"></script>
+    
+    <!-- Main app logic -->
+    <script src="app.js"></script>
+    
+    <!-- Dashboard-specific JavaScript -->
+    <script>
+        // Create dashboard.js content directly in HTML since file might be missing
+        console.log("Dashboard initializing...");
+        
+        // Global state
+        let currentUser = null;
+        let userData = null;
+        
+        // Initialize when page loads
+        document.addEventListener('DOMContentLoaded', function() {
+            console.log("Dashboard DOM loaded");
+            
+            // Wait for Firebase to be ready
+            setTimeout(() => {
+                if (typeof firebase === 'undefined' || !firebase.apps.length) {
+                    console.error("Firebase not loaded properly");
+                    showNotification("Firebase not loaded. Please refresh.", "error");
+                    return;
+                }
+                
+                // Check auth state
+                firebase.auth().onAuthStateChanged(async (user) => {
+                    if (!user) {
+                        console.log("No user logged in, redirecting to index");
+                        window.location.href = 'index.html';
+                        return;
+                    }
+                    
+                    currentUser = user;
+                    console.log("User authenticated:", user.uid);
+                    
+                    // Load user data
+                    await loadUserData();
+                    
+                    // Update UI
+                    updateDashboardUI();
+                    
+                    // Load dashboard data
+                    loadDashboardData();
+                });
+            }, 1000);
+        });
+        
+        // Load user data from Firestore
+        async function loadUserData() {
+            try {
+                const userDoc = await firebase.firestore()
+                    .collection("users")
+                    .doc(currentUser.uid)
+                    .get();
+                
+                if (userDoc.exists) {
+                    userData = userDoc.data();
+                    console.log("User data loaded:", userData.username);
+                    
+                    // Update sidebar
+                    document.getElementById('userName').textContent = userData.username || 'User';
+                    document.getElementById('welcomeName').textContent = userData.username || 'User';
+                    
+                    if (userData.photos && userData.photos.length > 0) {
+                        const firstPhoto = userData.photos[0];
+                        const avatarUrl = typeof firstPhoto === 'string' ? firstPhoto : firstPhoto.url;
+                        document.getElementById('userAvatar').src = avatarUrl;
+                    }
+                    
+                    // Update user status
+                    const userStatus = document.getElementById('userStatus');
+                    if (userData.status) {
+                        userStatus.textContent = userData.status;
+                        userStatus.className = userData.status.toLowerCase();
+                    }
+                    
+                } else {
+                    console.error("User document not found");
+                    showNotification("User profile not found", "error");
+                }
+            } catch (error) {
+                console.error("Error loading user data:", error);
+                showNotification("Failed to load user data", "error");
+            }
+        }
+        
+        // Update dashboard UI
+        function updateDashboardUI() {
+            // Update stats (placeholder for now)
+            if (userData) {
+                // You would update these with real data from your database
+                document.getElementById('profileViews').textContent = userData.stats?.profileViews || '0';
+                document.getElementById('messagesReceived').textContent = userData.stats?.messages || '0';
+                document.getElementById('likesReceived').textContent = userData.stats?.likes || '0';
+                document.getElementById('matchScore').textContent = userData.stats?.matchScore || '0%';
+            }
+        }
+        
+        // Load dashboard data
+        async function loadDashboardData() {
+            try {
+                // Load recent activity
+                await loadRecentActivity();
+                
+                // Load suggested profiles
+                await loadSuggestedProfiles();
+                
+                // Load online users
+                await loadOnlineUsers();
+                
+                // Load conversations
+                await loadConversations();
+                
+            } catch (error) {
+                console.error("Error loading dashboard data:", error);
+            }
+        }
+        
+        // Load recent activity
+        async function loadRecentActivity() {
+            const activityList = document.getElementById('activityList');
+            if (!activityList) return;
+            
+            try {
+                // Get recent activity from Firestore
+                const activityRef = firebase.firestore()
+                    .collection("users")
+                    .doc(currentUser.uid)
+                    .collection("activity")
+                    .orderBy("timestamp", "desc")
+                    .limit(5);
+                
+                const snapshot = await activityRef.get();
+                
+                if (snapshot.empty) {
+                    activityList.innerHTML = `
+                        <div class="activity-item">
+                            <i class="fas fa-info-circle"></i>
+                            <p>No recent activity</p>
+                            <span class="activity-time">Start exploring!</span>
+                        </div>
+                    `;
+                    return;
+                }
+                
+                activityList.innerHTML = '';
+                snapshot.forEach(doc => {
+                    const activity = doc.data();
+                    const item = document.createElement('div');
+                    item.className = 'activity-item';
+                    
+                    let icon = 'fa-info-circle';
+                    let text = activity.message || 'New activity';
+                    
+                    switch (activity.type) {
+                        case 'view':
+                            icon = 'fa-eye';
+                            break;
+                        case 'like':
+                            icon = 'fa-heart';
+                            break;
+                        case 'message':
+                            icon = 'fa-envelope';
+                            break;
+                        case 'match':
+                            icon = 'fa-star';
+                            break;
+                    }
+                    
+                    const time = formatTimeAgo(activity.timestamp?.toDate());
+                    
+                    item.innerHTML = `
+                        <i class="fas ${icon}"></i>
+                        <p>${text}</p>
+                        <span class="activity-time">${time}</span>
+                    `;
+                    activityList.appendChild(item);
+                });
+                
+            } catch (error) {
+                console.error("Error loading activity:", error);
+                activityList.innerHTML = `
+                    <div class="activity-item">
+                        <i class="fas fa-exclamation-triangle"></i>
+                        <p>Failed to load activity</p>
+                        <span class="activity-time">Try refreshing</span>
+                    </div>
+                `;
+            }
+        }
+        
+        // Load suggested profiles
+        async function loadSuggestedProfiles() {
+            const profilesGrid = document.getElementById('suggestedProfiles');
+            if (!profilesGrid) return;
+            
+            try {
+                // Get random users (excluding current user)
+                const usersRef = firebase.firestore().collection("users");
+                const snapshot = await usersRef
+                    .where("uid", "!=", currentUser.uid)
+                    .where("profileComplete", "==", true)
+                    .limit(4)
+                    .get();
+                
+                if (snapshot.empty) {
+                    profilesGrid.innerHTML = `
+                        <div class="profile-card placeholder">
+                            <div class="profile-avatar">
+                                <i class="fas fa-user-friends"></i>
+                            </div>
+                            <p>No suggestions available</p>
+                        </div>
+                    `;
+                    return;
+                }
+                
+                profilesGrid.innerHTML = '';
+                snapshot.forEach(doc => {
+                    const user = doc.data();
+                    const profileCard = document.createElement('div');
+                    profileCard.className = 'profile-card';
+                    
+                    let avatarUrl = 'https://via.placeholder.com/100';
+                    if (user.photos && user.photos.length > 0) {
+                        const firstPhoto = user.photos[0];
+                        avatarUrl = typeof firstPhoto === 'string' ? firstPhoto : firstPhoto.url;
+                    }
+                    
+                    const age = user.stats?.age || '';
+                    const position = user.stats?.position || '';
+                    
+                    profileCard.innerHTML = `
+                        <div class="profile-avatar">
+                            <img src="${avatarUrl}" alt="${user.username}">
+                        </div>
+                        <div class="profile-info">
+                            <h4>${user.username}</h4>
+                            <p>${age}${age && position ? ' • ' : ''}${position}</p>
+                        </div>
+                        <button class="profile-action" onclick="viewProfile('${doc.id}')">
+                            <i class="fas fa-eye"></i>
+                        </button>
+                    `;
+                    
+                    profilesGrid.appendChild(profileCard);
+                });
+                
+            } catch (error) {
+                console.error("Error loading suggestions:", error);
+                profilesGrid.innerHTML = `
+                    <div class="profile-card placeholder">
+                        <div class="profile-avatar">
+                            <i class="fas fa-exclamation-triangle"></i>
+                        </div>
+                        <p>Failed to load suggestions</p>
+                    </div>
+                `;
+            }
+        }
+        
+        // Load online users
+        async function loadOnlineUsers() {
+            const onlineUsers = document.getElementById('onlineUsers');
+            const onlineCount = document.querySelector('.online-count');
+            if (!onlineUsers) return;
+            
+            try {
+                // Get online users
+                const usersRef = firebase.firestore().collection("users");
+                const snapshot = await usersRef
+                    .where("status", "==", "online")
+                    .where("uid", "!=", currentUser.uid)
+                    .limit(10)
+                    .get();
+                
+                const count = snapshot.size;
+                if (onlineCount) {
+                    onlineCount.textContent = `(${count})`;
+                }
+                
+                if (snapshot.empty) {
+                    onlineUsers.innerHTML = `
+                        <div class="user-item">
+                            <i class="fas fa-user-friends"></i>
+                            <p>No one online</p>
+                        </div>
+                    `;
+                    return;
+                }
+                
+                onlineUsers.innerHTML = '';
+                snapshot.forEach(doc => {
+                    const user = doc.data();
+                    const userItem = document.createElement('div');
+                    userItem.className = 'user-item';
+                    
+                    let avatarUrl = 'https://via.placeholder.com/40';
+                    if (user.photos && user.photos.length > 0) {
+                        const firstPhoto = user.photos[0];
+                        avatarUrl = typeof firstPhoto === 'string' ? firstPhoto : firstPhoto.url;
+                    }
+                    
+                    userItem.innerHTML = `
+                        <img src="${avatarUrl}" alt="${user.username}" class="user-avatar">
+                        <span class="user-name">${user.username}</span>
+                    `;
+                    
+                    userItem.onclick = () => startChat(doc.id);
+                    onlineUsers.appendChild(userItem);
+                });
+                
+            } catch (error) {
+                console.error("Error loading online users:", error);
+            }
+        }
+        
+        // Load conversations
+        async function loadConversations() {
+            const conversationList = document.getElementById('conversationList');
+            if (!conversationList) return;
+            
+            try {
+                // Get conversations for current user
+                const conversationsRef = firebase.firestore()
+                    .collection("conversations")
+                    .where("participants", "array-contains", currentUser.uid)
+                    .orderBy("lastMessageTime", "desc")
+                    .limit(5);
+                
+                const snapshot = await conversationsRef.get();
+                
+                if (snapshot.empty) {
+                    return; // Keep the default "No conversations yet" message
+                }
+                
+                conversationList.innerHTML = '';
+                snapshot.forEach(doc => {
+                    const conv = doc.data();
+                    const otherUserId = conv.participants.find(id => id !== currentUser.uid);
+                    
+                    // You would need to fetch the other user's data here
+                    // For now, just show a generic conversation
+                    const convItem = document.createElement('div');
+                    convItem.className = 'conversation-item';
+                    
+                    convItem.innerHTML = `
+                        <div class="conversation-avatar">
+                            <i class="fas fa-user"></i>
+                        </div>
+                        <div class="conversation-info">
+                            <h4>User</h4>
+                            <p>${conv.lastMessage || 'Start a conversation'}</p>
+                        </div>
+                        <span class="conversation-time">${formatTimeAgo(conv.lastMessageTime?.toDate())}</span>
+                    `;
+                    
+                    conversationList.appendChild(convItem);
+                });
+                
+            } catch (error) {
+                console.error("Error loading conversations:", error);
+            }
+        }
+        
+        // Utility functions
+        function formatTimeAgo(date) {
+            if (!date) return 'Just now';
+            
+            const seconds = Math.floor((new Date() - date) / 1000);
+            
+            if (seconds < 60) return 'Just now';
+            if (seconds < 3600) return Math.floor(seconds / 60) + 'm ago';
+            if (seconds < 86400) return Math.floor(seconds / 3600) + 'h ago';
+            return Math.floor(seconds / 86400) + 'd ago';
+        }
+        
+        // Action functions
+        function toggleSidebar() {
+            const sidebar = document.querySelector('.sidebar');
+            if (sidebar) sidebar.classList.toggle('active');
+        }
+        
+        function logout() {
+            if (firebase.auth().currentUser) {
+                firebase.auth().signOut().then(() => {
+                    window.location.href = 'index.html';
+                }).catch(error => {
+                    console.error('Logout error:', error);
+                    showNotification('Logout failed: ' + error.message, 'error');
+                });
+            } else {
+                window.location.href = 'index.html';
+            }
+        }
+        
+        function showNotifications() {
+            alert('Notifications feature coming soon!');
+        }
+        
+        function toggleTheme() {
+            alert('Theme toggle coming soon!');
+        }
+        
+        function showSettings() {
+            alert('Settings page coming soon!');
+        }
+        
+        function viewAllActivity() {
+            alert('View all activity coming soon!');
+        }
+        
+        function viewProfile(userId) {
+            // Store userId in sessionStorage and redirect to profile view
+            sessionStorage.setItem('viewProfileId', userId);
+            window.location.href = 'view-profile.html';
+        }
+        
+        function startChat(userId) {
+            // Store userId in sessionStorage and redirect to messages
+            sessionStorage.setItem('startChatWith', userId);
+            window.location.href = 'messages.html';
+        }
+        
+        function showNotification(message, type = 'info') {
+            // Use the app.js notification system if available
+            if (window.showNotification) {
+                window.showNotification(message, type);
+                return;
+            }
+            
+            // Fallback notification
+            const notification = document.createElement('div');
+            notification.className = `notification ${type}`;
+            notification.textContent = message;
+            
+            document.body.appendChild(notification);
+            
+            setTimeout(() => {
+                notification.remove();
+            }, 5000);
+        }
+        
+        // Make functions available globally
+        window.toggleSidebar = toggleSidebar;
+        window.logout = logout;
+        window.showNotifications = showNotifications;
+        window.toggleTheme = toggleTheme;
+        window.showSettings = showSettings;
+        window.viewAllActivity = viewAllActivity;
+        window.viewProfile = viewProfile;
+        window.startChat = startChat;
+        
+        console.log("Dashboard functions initialized");
+    </script>
+</body>
+</html>

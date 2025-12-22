@@ -1,0 +1,236 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Upload Photos | NightVibe</title>
+    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="dashboard.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+</head>
+<body class="dashboard-page">
+    <!-- Navigation Sidebar -->
+    <nav class="sidebar">
+        <div class="sidebar-header">
+            <div class="logo">
+                <i class="fas fa-mask"></i>
+                <h2>NightVibe</h2>
+            </div>
+            <button class="menu-toggle" onclick="toggleSidebar()">
+                <i class="fas fa-bars"></i>
+            </button>
+        </div>
+        
+        <div class="user-profile">
+            <div class="avatar">
+                <img id="userAvatar" src="https://via.placeholder.com/100" alt="Avatar">
+                <span class="online-status"></span>
+            </div>
+            <div class="user-info">
+                <h3 id="userName">Loading...</h3>
+                <p id="userStatus">Setup Required</p>
+            </div>
+        </div>
+        
+        <div class="sidebar-menu">
+            <a href="dashboard.html" class="menu-item">
+                <i class="fas fa-home"></i>
+                <span>Dashboard</span>
+            </a>
+            <a href="my-profile.html" class="menu-item">
+                <i class="fas fa-user"></i>
+                <span>My Profile</span>
+            </a>
+            <a href="browse-profiles.html" class="menu-item">
+                <i class="fas fa-users"></i>
+                <span>Browse Profiles</span>
+            </a>
+            <a href="messages.html" class="menu-item">
+                <i class="fas fa-envelope"></i>
+                <span>Messages</span>
+            </a>
+            <a href="upload-photos.html" class="menu-item active">
+                <i class="fas fa-camera"></i>
+                <span>Upload Photos</span>
+            </a>
+        </div>
+        
+        <div class="sidebar-footer">
+            <button class="logout-btn" onclick="logout()">
+                <i class="fas fa-sign-out-alt"></i>
+                <span>Logout</span>
+            </button>
+        </div>
+    </nav>
+    
+    <!-- Main Content -->
+    <main class="main-content">
+        <!-- Top Bar -->
+        <header class="top-bar">
+            <div class="search-bar">
+                <i class="fas fa-search"></i>
+                <input type="text" placeholder="Search..." disabled>
+            </div>
+        </header>
+        
+        <!-- Upload Content -->
+        <div class="upload-content">
+            <!-- Upload Header -->
+            <div class="upload-header">
+                <h1>Complete Your Profile</h1>
+                <p>Upload at least 5 photos to start connecting with others</p>
+                <div class="upload-progress">
+                    <div class="progress-bar">
+                        <div class="progress-fill" id="photoProgressFill"></div>
+                    </div>
+                    <span class="progress-text" id="photoProgressText">0/5 photos</span>
+                </div>
+            </div>
+            
+            <!-- Upload Instructions -->
+            <div class="upload-instructions">
+                <div class="instruction-card">
+                    <i class="fas fa-check-circle"></i>
+                    <h3>Photo Requirements</h3>
+                    <ul>
+                        <li>Minimum 5 photos required</li>
+                        <li>Maximum 10 photos allowed</li>
+                        <li>Clear, well-lit photos only</li>
+                        <li>Explicit content allowed</li>
+                        <li>Photos must be of yourself</li>
+                    </ul>
+                </div>
+                
+                <div class="instruction-card">
+                    <i class="fas fa-exclamation-triangle"></i>
+                    <h3>Community Guidelines</h3>
+                    <ul>
+                        <li>Be respectful and authentic</li>
+                        <li>No hate speech or harassment</li>
+                        <li>Photos may be naughty</li>
+                        <li>Disrespect may result in ban</li>
+                        <li>Admin reviews all reports</li>
+                    </ul>
+                </div>
+                
+                <div class="instruction-card">
+                    <i class="fas fa-lightbulb"></i>
+                    <h3>Photo Tips</h3>
+                    <ul>
+                        <li>Use good lighting</li>
+                        <li>Show your face clearly in at least 1 photo</li>
+                        <li>Variety is encouraged</li>
+                        <li>Natural poses work best</li>
+                        <li>Have fun you dirty pig XD</li>
+                    </ul>
+                </div>
+            </div>
+            
+            <!-- Upload Area -->
+            <div class="upload-main-area">
+                <div class="upload-box" id="uploadBox">
+                    <div class="upload-icon">
+                        <i class="fas fa-cloud-upload-alt"></i>
+                    </div>
+                    <h2>Drag & Drop Photos Here</h2>
+                    <p>or click to browse files</p>
+                    <input type="file" id="photoUploadInput" accept="image/*" multiple style="display: none;">
+                    <button class="upload-btn" onclick="document.getElementById('photoUploadInput').click()">
+                        <i class="fas fa-folder-open"></i> Browse Files
+                    </button>
+                    <p class="file-types">Supported: JPG, PNG, WebP (Max 10MB each)</p>
+                </div>
+                
+                <!-- Uploaded Photos Preview -->
+                <div class="uploaded-photos-preview" id="uploadedPhotosPreview">
+                    <h3>Your Photos <span id="photoCount">(0/5)</span></h3>
+                    <div class="photos-preview-grid" id="photosPreviewGrid">
+                        <!-- Uploaded photos will appear here -->
+                        <div class="empty-photos">
+                            <i class="fas fa-images"></i>
+                            <p>No photos uploaded yet</p>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Upload Progress -->
+                <div class="upload-progress-details" id="uploadProgressDetails" style="display: none;">
+                    <h3>Upload Progress</h3>
+                    <div class="progress-items" id="progressItems">
+                        <!-- Individual file progress will appear here -->
+                    </div>
+                </div>
+                
+                <!-- Action Buttons -->
+                <div class="upload-actions">
+                    <button class="btn-secondary" onclick="skipForNow()" id="skipButton">
+                        <i class="fas fa-forward"></i> Skip for Now
+                    </button>
+                    <button class="btn-primary" onclick="completeUpload()" id="completeButton" disabled>
+                        <i class="fas fa-check"></i> Complete Setup
+                    </button>
+                </div>
+            </div>
+            
+            <!-- Photo Requirements Details -->
+            <div class="requirements-details">
+                <h3>Why 5 Photos?</h3>
+                <div class="requirements-grid">
+                    <div class="requirement-item">
+                        <i class="fas fa-user-shield"></i>
+                        <h4>Verification</h4>
+                        <p>Multiple photos help verify you're a real person</p>
+                    </div>
+                    <div class="requirement-item">
+                        <i class="fas fa-thumbs-up"></i>
+                        <h4>Better Matches</h4>
+                        <p>Profiles with more photos get more attention</p>
+                    </div>
+                    <div class="requirement-item">
+                        <i class="fas fa-heart"></i>
+                        <h4>Trust Building</h4>
+                        <p>Complete profiles build trust in the community</p>
+                    </div>
+                    <div class="requirement-item">
+                        <i class="fas fa-star"></i>
+                        <h4>Higher Rating</h4>
+                        <p>Complete profiles get better ratings from others</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </main>
+    
+    <!-- Photo Preview Modal -->
+    <div id="photoPreviewModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>Photo Preview</h2>
+                <span class="close-modal" onclick="closePreviewModal()">&times;</span>
+            </div>
+            <div class="modal-body">
+                <div class="preview-container">
+                    <img id="previewImage" src="" alt="Preview">
+                </div>
+                <div class="preview-actions">
+                    <button class="btn-danger" onclick="removeCurrentPhoto()">
+                        <i class="fas fa-trash"></i> Remove Photo
+                    </button>
+                    <button class="btn-secondary" onclick="closePreviewModal()">Close</button>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Load Firebase v8 SDK (NOT v9 with modules) -->
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-auth.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-firestore.js"></script>
+    
+    <!-- Your Firebase configuration -->
+    <script src="firebase-config.js"></script>
+    
+    <!-- Upload photos script -->
+    <script src="upload-photos.js"></script>
+</body>
+</html>

@@ -1,0 +1,513 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Admin Panel | NightVibe</title>
+    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="dashboard.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+</head>
+<body class="dashboard-page">
+    <!-- Navigation Sidebar -->
+    <nav class="sidebar">
+        <div class="sidebar-header">
+            <div class="logo">
+                <i class="fas fa-mask"></i>
+                <h2>NightVibe Admin</h2>
+            </div>
+            <button class="menu-toggle" onclick="toggleSidebar()">
+                <i class="fas fa-bars"></i>
+            </button>
+        </div>
+        
+        <div class="user-profile">
+            <div class="avatar">
+                <img id="userAvatar" src="https://via.placeholder.com/100" alt="Avatar">
+                <span class="online-status"></span>
+            </div>
+            <div class="user-info">
+                <h3 id="userName">Admin</h3>
+                <p class="admin-badge"><i class="fas fa-shield-alt"></i> Administrator</p>
+            </div>
+        </div>
+        
+        <div class="sidebar-menu">
+            <a href="dashboard.html" class="menu-item">
+                <i class="fas fa-home"></i>
+                <span>Dashboard</span>
+            </a>
+            <a href="admin.html" class="menu-item active">
+                <i class="fas fa-cogs"></i>
+                <span>Admin Panel</span>
+            </a>
+            <a href="#" class="menu-item" onclick="showSection('users')">
+                <i class="fas fa-users"></i>
+                <span>Users</span>
+                <span class="menu-badge" id="totalUsers">0</span>
+            </a>
+            <a href="#" class="menu-item" onclick="showSection('messages')">
+                <i class="fas fa-envelope"></i>
+                <span>Messages</span>
+                <span class="menu-badge" id="totalMessagesAdmin">0</span>
+            </a>
+            <a href="#" class="menu-item" onclick="showSection('reports')">
+                <i class="fas fa-flag"></i>
+                <span>Reports</span>
+                <span class="menu-badge" id="pendingReports">0</span>
+            </a>
+            <a href="#" class="menu-item" onclick="showSection('analytics')">
+                <i class="fas fa-chart-line"></i>
+                <span>Analytics</span>
+            </a>
+            <a href="#" class="menu-item" onclick="showSection('settings')">
+                <i class="fas fa-sliders-h"></i>
+                <span>Settings</span>
+            </a>
+        </div>
+        
+        <div class="sidebar-footer">
+            <button class="logout-btn" onclick="logout()">
+                <i class="fas fa-sign-out-alt"></i>
+                <span>Logout</span>
+            </button>
+        </div>
+    </nav>
+    
+    <!-- Main Content -->
+    <main class="main-content">
+        <!-- Top Bar -->
+        <header class="top-bar">
+            <div class="search-bar">
+                <i class="fas fa-search"></i>
+                <input type="text" id="adminSearch" placeholder="Search users, messages, reports...">
+            </div>
+            
+            <div class="top-bar-actions">
+                <div class="admin-actions">
+                    <button class="btn-primary" onclick="exportData()">
+                        <i class="fas fa-download"></i> Export Data
+                    </button>
+                    <button class="btn-danger" onclick="clearAllData()">
+                        <i class="fas fa-trash"></i> Clear Data
+                    </button>
+                </div>
+            </div>
+        </header>
+        
+        <!-- Admin Content -->
+        <div class="admin-content">
+            <!-- Users Section -->
+            <div class="admin-section" id="usersSection">
+                <div class="section-header">
+                    <h1>User Management</h1>
+                    <div class="section-actions">
+                        <button class="btn-primary" onclick="addNewUser()">
+                            <i class="fas fa-user-plus"></i> Add User
+                        </button>
+                        <button class="btn-secondary" onclick="refreshUsers()">
+                            <i class="fas fa-sync-alt"></i> Refresh
+                        </button>
+                    </div>
+                </div>
+                
+                <div class="users-filters">
+                    <div class="filter-group">
+                        <input type="text" id="userSearch" placeholder="Search users..." oninput="filterUsers()">
+                        <select id="userFilter" onchange="filterUsers()">
+                            <option value="all">All Users</option>
+                            <option value="admin">Admins Only</option>
+                            <option value="active">Active Today</option>
+                            <option value="inactive">Inactive</option>
+                            <option value="reported">Reported Users</option>
+                            <option value="blocked">Blocked Users</option>
+                        </select>
+                    </div>
+                </div>
+                
+                <div class="users-table-container">
+                    <table class="users-table">
+                        <thead>
+                            <tr>
+                                <th>ID</th>
+                                <th>Username</th>
+                                <th>Real Name</th>
+                                <th>Phone</th>
+                                <th>Age</th>
+                                <th>Status</th>
+                                <th>Photos</th>
+                                <th>Joined</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="usersTableBody">
+                            <!-- Users will be loaded here -->
+                        </tbody>
+                    </table>
+                </div>
+                
+                <div class="pagination" id="usersPagination">
+                    <!-- Pagination will be added here -->
+                </div>
+            </div>
+            
+            <!-- Messages Section -->
+            <div class="admin-section" id="messagesSection" style="display: none;">
+                <div class="section-header">
+                    <h1>Message Monitoring</h1>
+                    <div class="section-actions">
+                        <button class="btn-danger" onclick="deleteAllMessages()">
+                            <i class="fas fa-trash"></i> Delete All Messages
+                        </button>
+                    </div>
+                </div>
+                
+                <div class="messages-filters">
+                    <div class="filter-group">
+                        <input type="text" id="messageSearchAdmin" placeholder="Search messages...">
+                        <select id="messageFilterAdmin">
+                            <option value="all">All Messages</option>
+                            <option value="today">Today</option>
+                            <option value="week">This Week</option>
+                            <option value="month">This Month</option>
+                            <option value="anonymous">Anonymous Only</option>
+                            <option value="reported">Reported Messages</option>
+                        </select>
+                    </div>
+                </div>
+                
+                <div class="messages-monitor">
+                    <div class="messages-list-admin" id="messagesListAdmin">
+                        <!-- Messages will be loaded here -->
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Reports Section -->
+            <div class="admin-section" id="reportsSection" style="display: none;">
+                <div class="section-header">
+                    <h1>Reports & Moderation</h1>
+                    <div class="section-actions">
+                        <button class="btn-primary" onclick="resolveAllReports()">
+                            <i class="fas fa-check"></i> Mark All as Resolved
+                        </button>
+                    </div>
+                </div>
+                
+                <div class="reports-filters">
+                    <div class="filter-group">
+                        <select id="reportStatusFilter">
+                            <option value="all">All Reports</option>
+                            <option value="pending">Pending</option>
+                            <option value="investigating">Investigating</option>
+                            <option value="resolved">Resolved</option>
+                            <option value="dismissed">Dismissed</option>
+                        </select>
+                        <select id="reportTypeFilter">
+                            <option value="all">All Types</option>
+                            <option value="harassment">Harassment</option>
+                            <option value="inappropriate">Inappropriate Content</option>
+                            <option value="spam">Spam</option>
+                            <option value="fake">Fake Profile</option>
+                        </select>
+                    </div>
+                </div>
+                
+                <div class="reports-list" id="reportsList">
+                    <!-- Reports will be loaded here -->
+                </div>
+            </div>
+            
+            <!-- Analytics Section -->
+            <div class="admin-section" id="analyticsSection" style="display: none;">
+                <div class="section-header">
+                    <h1>Analytics Dashboard</h1>
+                    <div class="section-actions">
+                        <button class="btn-primary" onclick="refreshAnalytics()">
+                            <i class="fas fa-sync-alt"></i> Refresh
+                        </button>
+                    </div>
+                </div>
+                
+                <div class="analytics-stats">
+                    <div class="stat-card admin">
+                        <div class="stat-icon">
+                            <i class="fas fa-users"></i>
+                        </div>
+                        <div class="stat-info">
+                            <h3 id="totalUsersCount">0</h3>
+                            <p>Total Users</p>
+                        </div>
+                    </div>
+                    <div class="stat-card admin">
+                        <div class="stat-icon">
+                            <i class="fas fa-comments"></i>
+                        </div>
+                        <div class="stat-info">
+                            <h3 id="totalMessagesCount">0</h3>
+                            <p>Total Messages</p>
+                        </div>
+                    </div>
+                    <div class="stat-card admin">
+                        <div class="stat-icon">
+                            <i class="fas fa-flag"></i>
+                        </div>
+                        <div class="stat-info">
+                            <h3 id="totalReportsCount">0</h3>
+                            <p>Total Reports</p>
+                        </div>
+                    </div>
+                    <div class="stat-card admin">
+                        <div class="stat-icon">
+                            <i class="fas fa-chart-line"></i>
+                        </div>
+                        <div class="stat-info">
+                            <h3 id="activeUsersCount">0</h3>
+                            <p>Active Today</p>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="charts-container">
+                    <div class="chart-card">
+                        <h3>User Growth</h3>
+                        <div class="chart-placeholder" id="userGrowthChart">
+                            <!-- Chart will be rendered here -->
+                        </div>
+                    </div>
+                    <div class="chart-card">
+                        <h3>Message Volume</h3>
+                        <div class="chart-placeholder" id="messageVolumeChart">
+                            <!-- Chart will be rendered here -->
+                        </div>
+                    </div>
+                    <div class="chart-card">
+                        <h3>Reports by Type</h3>
+                        <div class="chart-placeholder" id="reportsChart">
+                            <!-- Chart will be rendered here -->
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Settings Section -->
+            <div class="admin-section" id="settingsSection" style="display: none;">
+                <div class="section-header">
+                    <h1>System Settings</h1>
+                    <div class="section-actions">
+                        <button class="btn-primary" onclick="saveSettings()">
+                            <i class="fas fa-save"></i> Save Settings
+                        </button>
+                    </div>
+                </div>
+                
+                <div class="settings-form">
+                    <div class="form-group">
+                        <label>Site Maintenance</label>
+                        <div class="toggle-group">
+                            <span>Maintenance Mode</span>
+                            <label class="toggle-switch">
+                                <input type="checkbox" id="maintenanceMode">
+                                <span class="slider"></span>
+                            </label>
+                        </div>
+                        <textarea id="maintenanceMessage" rows="3" placeholder="Maintenance message..."></textarea>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label>Registration Settings</label>
+                        <div class="toggle-group">
+                            <span>Allow New Registrations</span>
+                            <label class="toggle-switch">
+                                <input type="checkbox" id="allowRegistrations" checked>
+                                <span class="slider"></span>
+                            </label>
+                        </div>
+                        <div class="toggle-group">
+                            <span>Require Email Verification</span>
+                            <label class="toggle-switch">
+                                <input type="checkbox" id="requireEmailVerification">
+                                <span class="slider"></span>
+                            </label>
+                        </div>
+                        <div class="toggle-group">
+                            <span>Require Phone Verification</span>
+                            <label class="toggle-switch">
+                                <input type="checkbox" id="requirePhoneVerification">
+                                <span class="slider"></span>
+                            </label>
+                        </div>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label>Content Moderation</label>
+                        <div class="toggle-group">
+                            <span>Auto-filter inappropriate content</span>
+                            <label class="toggle-switch">
+                                <input type="checkbox" id="autoFilterContent" checked>
+                                <span class="slider"></span>
+                            </label>
+                        </div>
+                        <div class="toggle-group">
+                            <span>Scan uploaded photos</span>
+                            <label class="toggle-switch">
+                                <input type="checkbox" id="scanPhotos" checked>
+                                <span class="slider"></span>
+                            </label>
+                        </div>
+                        <div class="toggle-group">
+                            <span>Monitor anonymous messages</span>
+                            <label class="toggle-switch">
+                                <input type="checkbox" id="monitorMessages" checked>
+                                <span class="slider"></span>
+                            </label>
+                        </div>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label>Security Settings</label>
+                        <div class="input-group">
+                            <span>Session Timeout (minutes)</span>
+                            <input type="number" id="sessionTimeout" value="60" min="5" max="1440">
+                        </div>
+                        <div class="input-group">
+                            <span>Max Login Attempts</span>
+                            <input type="number" id="maxLoginAttempts" value="5" min="1" max="20">
+                        </div>
+                        <div class="input-group">
+                            <span>Password Reset Timeout (hours)</span>
+                            <input type="number" id="passwordResetTimeout" value="24" min="1" max="168">
+                        </div>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label>Email Notifications</label>
+                        <div class="toggle-group">
+                            <span>Send welcome emails</span>
+                            <label class="toggle-switch">
+                                <input type="checkbox" id="sendWelcomeEmails" checked>
+                                <span class="slider"></span>
+                            </label>
+                        </div>
+                        <div class="toggle-group">
+                            <span>Send report notifications</span>
+                            <label class="toggle-switch">
+                                <input type="checkbox" id="sendReportNotifications" checked>
+                                <span class="slider"></span>
+                            </label>
+                        </div>
+                        <div class="toggle-group">
+                            <span>Send system alerts</span>
+                            <label class="toggle-switch">
+                                <input type="checkbox" id="sendSystemAlerts" checked>
+                                <span class="slider"></span>
+                            </label>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </main>
+    
+    <!-- User Detail Modal -->
+    <div id="userDetailModal" class="modal">
+        <div class="modal-content wide">
+            <div class="modal-header">
+                <h2>User Details</h2>
+                <span class="close-modal" onclick="closeUserModal()">&times;</span>
+            </div>
+            <div class="modal-body">
+                <div class="user-detail-content" id="userDetailContent">
+                    <!-- User details will be loaded here -->
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Message Detail Modal -->
+    <div id="messageDetailModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>Message Details</h2>
+                <span class="close-modal" onclick="closeMessageModal()">&times;</span>
+            </div>
+            <div class="modal-body">
+                <div class="message-detail-content" id="messageDetailContent">
+                    <!-- Message details will be loaded here -->
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Report Detail Modal -->
+    <div id="reportDetailModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>Report Details</h2>
+                <span class="close-modal" onclick="closeReportModal()">&times;</span>
+            </div>
+            <div class="modal-body">
+                <div class="report-detail-content" id="reportDetailContent">
+                    <!-- Report details will be loaded here -->
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn-secondary" onclick="dismissReport()">Dismiss</button>
+                <button class="btn-primary" onclick="resolveReport()">Mark as Resolved</button>
+                <button class="btn-danger" onclick="takeAction()">Take Action</button>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Add User Modal -->
+    <div id="addUserModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>Add New User</h2>
+                <span class="close-modal" onclick="closeAddUserModal()">&times;</span>
+            </div>
+            <div class="modal-body">
+                <form id="addUserForm">
+                    <div class="form-group">
+                        <label for="newUsername">Username</label>
+                        <input type="text" id="newUsername" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="newEmail">Email</label>
+                        <input type="email" id="newEmail" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="newPassword">Password</label>
+                        <input type="password" id="newPassword" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="newRealName">Real Name</label>
+                        <input type="text" id="newRealName" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="newPhone">Phone</label>
+                        <input type="tel" id="newPhone" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="newUserType">User Type</label>
+                        <select id="newUserType">
+                            <option value="user">Regular User</option>
+                            <option value="admin">Administrator</option>
+                            <option value="moderator">Moderator</option>
+                        </select>
+                    </div>
+                    <div class="form-actions">
+                        <button type="button" class="btn-secondary" onclick="closeAddUserModal()">Cancel</button>
+                        <button type="submit" class="btn-primary">Create User</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+    
+    <script src="firebase-config.js"></script>
+    <script type="module" src="app.js"></script>
+    <script type="module" src="admin.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</body>
+</html>

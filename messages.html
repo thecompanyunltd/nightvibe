@@ -1,0 +1,429 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Messages | NightVibe</title>
+    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="dashboard.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        /* Additional styles for messages page */
+      
+    /* Add basic styles for messages page if dashboard.css doesn't load */
+    .messages-container {
+        display: flex;
+        height: calc(100vh - 160px);
+        background: #1a1a2e;
+        border-radius: 10px;
+        overflow: hidden;
+        margin-top: 20px;
+    }
+    
+    .conversations-sidebar {
+        width: 300px;
+        border-right: 1px solid #2a2a4a;
+        overflow-y: auto;
+    }
+    
+    .messages-area {
+        flex: 1;
+        display: flex;
+        flex-direction: column;
+    }
+    
+    .message {
+        max-width: 70%;
+        padding: 10px 15px;
+        margin: 5px 15px;
+        border-radius: 15px;
+        position: relative;
+    }
+    
+    .message.sent {
+        background: #4a4a6d;
+        align-self: flex-end;
+        border-bottom-right-radius: 5px;
+    }
+    
+    .message.received {
+        background: #2a2a4a;
+        align-self: flex-start;
+        border-bottom-left-radius: 5px;
+    }
+    
+    .modal {
+        display: none;
+        position: fixed;
+        z-index: 1000;
+        left: 0;
+        top: 0;
+        width: 100%;
+        height: 100%;
+        background-color: rgba(0,0,0,0.8);
+    }
+    
+    .modal-content {
+        background-color: #1a1a2e;
+        margin: 10% auto;
+        padding: 20px;
+        border: 1px solid #2a2a4a;
+        width: 80%;
+        max-width: 500px;
+        border-radius: 10px;
+        color: white;
+    }
+    
+    .close-modal {
+        color: #aaa;
+        float: right;
+        font-size: 28px;
+        font-weight: bold;
+        cursor: pointer;
+    }
+    
+    .close-modal:hover {
+        color: white;
+    }
+</style>
+    </style>
+</head>
+<body class="dashboard-page">
+    <!-- Navigation Sidebar -->
+    <nav class="sidebar">
+        <div class="sidebar-header">
+            <div class="logo">
+                <i class="fas fa-mask"></i>
+                <h2>NightVibe</h2>
+            </div>
+            <button class="menu-toggle" onclick="toggleSidebar()">
+                <i class="fas fa-bars"></i>
+            </button>
+        </div>
+        
+        <div class="user-profile">
+            <div class="avatar">
+                <img id="userAvatar" src="https://via.placeholder.com/100" alt="Avatar">
+                <span class="online-status"></span>
+            </div>
+            <div class="user-info">
+                <h3 id="userName">Loading...</h3>
+                <p id="userStatus">Online</p>
+            </div>
+        </div>
+        
+        <div class="sidebar-menu">
+            <a href="dashboard.html" class="menu-item">
+                <i class="fas fa-home"></i>
+                <span>Dashboard</span>
+            </a>
+            <a href="my-profile.html" class="menu-item">
+                <i class="fas fa-user"></i>
+                <span>My Profile</span>
+            </a>
+            <a href="browse-profiles.html" class="menu-item">
+                <i class="fas fa-users"></i>
+                <span>Browse Profiles</span>
+                <span class="menu-badge" id="onlineCount">0</span>
+            </a>
+            <a href="messages.html" class="menu-item active">
+                <i class="fas fa-envelope"></i>
+                <span>Messages</span>
+                <span class="menu-badge" id="unreadCount">0</span>
+            </a>
+            <a href="#" class="menu-item">
+                <i class="fas fa-heart"></i>
+                <span>Matches</span>
+            </a>
+            <a href="#" class="menu-item">
+                <i class="fas fa-cog"></i>
+                <span>Settings</span>
+            </a>
+        </div>
+        
+        <div class="sidebar-footer">
+            <button class="logout-btn" onclick="logout()">
+                <i class="fas fa-sign-out-alt"></i>
+                <span>Logout</span>
+            </button>
+        </div>
+    </nav>
+    
+    <!-- Main Content -->
+    <main class="main-content">
+        <!-- Top Bar -->
+        <header class="top-bar">
+            <div class="search-bar">
+                <i class="fas fa-search"></i>
+                <input type="text" id="messageSearch" placeholder="Search messages...">
+            </div>
+            
+            <div class="top-bar-actions">
+                <button class="notification-btn">
+                    <i class="fas fa-bell"></i>
+                    <span class="notification-count">3</span>
+                </button>
+                <button class="theme-toggle">
+                    <i class="fas fa-moon"></i>
+                </button>
+            </div>
+        </header>
+        
+        <!-- Messages Content -->
+        <div class="messages-content">
+            <!-- Messages Header -->
+            <div class="messages-header">
+                <h1>Messages</h1>
+                <div class="message-actions">
+                    <button class="btn-primary" onclick="composeNewMessage()">
+                        <i class="fas fa-plus"></i> New Message
+                    </button>
+                    <button class="btn-secondary" onclick="refreshMessages()">
+                        <i class="fas fa-sync-alt"></i> Refresh
+                    </button>
+                    <div class="message-filters">
+                        <select id="messageFilter">
+                            <option value="all">All Messages</option>
+                            <option value="unread">Unread Only</option>
+                            <option value="read">Read Only</option>
+                            <option value="today">Today</option>
+                            <option value="week">This Week</option>
+                        </select>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Messages Container -->
+            <div class="messages-container">
+                <!-- Conversations List -->
+                <div class="conversations-sidebar">
+                    <div class="conversations-header">
+                        <h3>Conversations</h3>
+                        <span class="conversation-count" id="totalConversations">0</span>
+                    </div>
+                    
+                    <div class="conversations-list" id="conversationsList">
+                        <!-- Conversations will be loaded here -->
+                        <div class="empty-conversations">
+                            <i class="fas fa-comments"></i>
+                            <p>No conversations yet</p>
+                            <button class="btn-small" onclick="composeNewMessage()">Start Chatting</button>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Messages Area -->
+                <div class="messages-area">
+                    <!-- No Conversation Selected -->
+                    <div class="no-conversation-selected" id="noConversationView">
+                        <div class="empty-messages">
+                            <i class="fas fa-envelope-open-text"></i>
+                            <h2>Select a conversation</h2>
+                            <p>Choose a conversation from the list to start reading messages</p>
+                            <button class="btn-primary" onclick="composeNewMessage()">
+                                <i class="fas fa-plus"></i> Start New Conversation
+                            </button>
+                        </div>
+                    </div>
+                    
+                    <!-- Active Conversation -->
+                    <div class="active-conversation" id="activeConversationView" style="display: none;">
+                        <!-- Conversation Header -->
+                        <div class="conversation-header">
+                            <div class="conversation-partner">
+                                <div class="partner-avatar">
+                                    <img id="partnerAvatar" src="https://via.placeholder.com/50" alt="User">
+                                    <span class="partner-online" id="partnerOnlineStatus"></span>
+                                </div>
+                                <div class="partner-info">
+                                    <h3 id="partnerUsername">Username</h3>
+                                    <p id="partnerLastSeen">Last seen recently</p>
+                                </div>
+                            </div>
+                            <div class="conversation-actions">
+                                <button class="conversation-action-btn" onclick="viewPartnerProfile()" title="View Profile">
+                                    <i class="fas fa-user"></i>
+                                </button>
+                                <button class="conversation-action-btn" onclick="blockUser()" title="Block User">
+                                    <i class="fas fa-ban"></i>
+                                </button>
+                                <button class="conversation-action-btn" onclick="reportUser()" title="Report">
+                                    <i class="fas fa-flag"></i>
+                                </button>
+                                <button class="conversation-action-btn" onclick="clearConversation()" title="Clear Chat">
+                                    <i class="fas fa-trash"></i>
+                                </button>
+                            </div>
+                        </div>
+                        
+                        <!-- Messages List -->
+                        <div class="messages-list" id="messagesList">
+                            <!-- Messages will be loaded here -->
+                        </div>
+                        
+                        <!-- Message Input -->
+                        <div class="message-input-area">
+                            <div class="message-input-container">
+                                <textarea id="messageInput" placeholder="Type your message here..." rows="1"></textarea>
+                                <div class="input-actions">
+                                    <button class="input-action-btn" onclick="attachFile()" title="Attach File">
+                                        <i class="fas fa-paperclip"></i>
+                                    </button>
+                                    <button class="input-action-btn" onclick="sendAnonymousMessage()" title="Send Anonymously">
+                                        <i class="fas fa-user-secret"></i>
+                                    </button>
+                                    <button class="send-btn" onclick="sendMessage()" id="sendMessageBtn">
+                                        <i class="fas fa-paper-plane"></i> Send
+                                    </button>
+                                </div>
+                            </div>
+                            <div class="message-options">
+                                <label class="checkbox">
+                                    <input type="checkbox" id="sendAnonymously" checked>
+                                    <span>Send anonymously</span>
+                                </label>
+                                <span class="char-counter" id="messageCharCounter">0/1000</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Compose New Message -->
+                <div class="compose-sidebar" id="composeSidebar" style="display: none;">
+                    <div class="compose-header">
+                        <h3>New Message</h3>
+                        <button class="close-compose" onclick="closeCompose()">
+                            <i class="fas fa-times"></i>
+                        </button>
+                    </div>
+                    
+                    <div class="compose-body">
+                        <div class="form-group">
+                            <label for="recipientSearch">To:</label>
+                            <div class="recipient-search">
+                                <input type="text" id="recipientSearch" placeholder="Search for a user...">
+                                <div class="search-results" id="searchResults"></div>
+                            </div>
+                            <div class="selected-recipients" id="selectedRecipients"></div>
+                        </div>
+                        
+                        <div class="form-group">
+                            <label for="composeSubject">Subject (optional):</label>
+                            <input type="text" id="composeSubject" placeholder="Enter subject...">
+                        </div>
+                        
+                        <div class="form-group">
+                            <label for="composeMessage">Message:</label>
+                            <textarea id="composeMessage" rows="8" placeholder="Type your message..."></textarea>
+                            <div class="char-counter" id="composeCharCounter">0/1000</div>
+                        </div>
+                        
+                        <div class="compose-options">
+                            <label class="checkbox">
+                                <input type="checkbox" id="composeAnonymous" checked>
+                                <span>Send anonymously</span>
+                            </label>
+                        </div>
+                        
+                        <div class="compose-actions">
+                            <button class="btn-secondary" onclick="closeCompose()">Cancel</button>
+                            <button class="btn-primary" onclick="sendComposedMessage()">Send Message</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </main>
+    
+    <!-- Report Modal -->
+    <div id="reportModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>Report User</h2>
+                <span class="close-modal" onclick="closeReportModal()">&times;</span>
+            </div>
+            <div class="modal-body">
+                <form id="reportForm">
+                    <div class="form-group">
+                        <label>Reason for reporting:</label>
+                        <div class="report-reasons">
+                            <label class="checkbox">
+                                <input type="checkbox" name="reason" value="harassment">
+                                <span>Harassment or bullying</span>
+                            </label>
+                            <label class="checkbox">
+                                <input type="checkbox" name="reason" value="inappropriate">
+                                <span>Inappropriate content</span>
+                            </label>
+                            <label class="checkbox">
+                                <input type="checkbox" name="reason" value="spam">
+                                <span>Spam or solicitation</span>
+                            </label>
+                            <label class="checkbox">
+                                <input type="checkbox" name="reason" value="fake">
+                                <span>Fake profile</span>
+                            </label>
+                            <label class="checkbox">
+                                <input type="checkbox" name="reason" value="other">
+                                <span>Other</span>
+                            </label>
+                        </div>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="reportDetails">Additional details:</label>
+                        <textarea id="reportDetails" rows="4" placeholder="Please provide more details..."></textarea>
+                    </div>
+                    
+                    <div class="form-actions">
+                        <button type="button" class="btn-secondary" onclick="closeReportModal()">Cancel</button>
+                        <button type="submit" class="btn-danger">Submit Report</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Block Modal -->
+    <div id="blockModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>Block User</h2>
+                <span class="close-modal" onclick="closeBlockModal()">&times;</span>
+            </div>
+            <div class="modal-body">
+                <p>Are you sure you want to block <span id="blockUsername">this user</span>?</p>
+                <p class="warning-text">
+                    <i class="fas fa-exclamation-triangle"></i>
+                    This user will no longer be able to:
+                </p>
+                <ul class="block-consequences">
+                    <li>Send you messages</li>
+                    <li>See your profile</li>
+                    <li>View your photos</li>
+                    <li>Contact you in any way</li>
+                </ul>
+                <div class="form-actions">
+                    <button type="button" class="btn-secondary" onclick="closeBlockModal()">Cancel</button>
+                    <button type="button" class="btn-danger" onclick="confirmBlock()">Block User</button>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+<!-- NEW: -->
+<!-- Load Firebase v8 SDK FIRST -->
+<script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
+<script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-auth.js"></script>
+<script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-firestore.js"></script>
+
+<!-- Then load your config (which initializes Firebase) -->
+<script src="firebase-config.js"></script>
+
+<!-- Then load app.js -->
+<script src="app.js"></script>
+
+<!-- Finally load messages.js -->
+<script src="messages.js"></script>
+</body>
+</html>
