@@ -509,6 +509,10 @@ async function openConversation(conversation) {
     
     if (noConvView) noConvView.style.display = 'none';
     if (activeConvView) activeConvView.style.display = 'flex';
+
+    // If on a small screen, switch to the conversation-first view
+    const messagesContainer = document.querySelector('.messages-container');
+    if (messagesContainer) messagesContainer.classList.add('conversation-open');
     
     // Load conversation data
     await loadConversationData(conversation);
@@ -1255,6 +1259,37 @@ function showNewMessageNotification(message) {
         }, 300);
     }, 3000);
 }
+
+// Mobile helpers: close conversation view and toggle page menu
+function closeConversationView() {
+    activeConversation = null;
+    const noConvView = document.getElementById('noConversationView');
+    const activeConvView = document.getElementById('activeConversationView');
+    const messagesContainer = document.querySelector('.messages-container');
+    if (messagesContainer) messagesContainer.classList.remove('conversation-open');
+    if (activeConvView) activeConvView.style.display = 'none';
+    if (noConvView) noConvView.style.display = 'block';
+}
+
+function toggleMessagesMenu() {
+    const btn = document.getElementById('messagesMenuBtn');
+    const menu = document.getElementById('messagesMenu');
+    if (!menu || !btn) return;
+    const isOpen = menu.classList.toggle('open');
+    btn.setAttribute('aria-expanded', isOpen ? 'true' : 'false');
+}
+
+// Close menu if clicking outside
+document.addEventListener('click', function(e) {
+    const messagesMenu = document.getElementById('messagesMenu');
+    const menuBtn = document.getElementById('messagesMenuBtn');
+    if (messagesMenu && menuBtn) {
+        if (!messagesMenu.contains(e.target) && !menuBtn.contains(e.target)) {
+            messagesMenu.classList.remove('open');
+            menuBtn.setAttribute('aria-expanded', 'false');
+        }
+    }
+});
 
 // Make functions globally available
 window.composeNewMessage = composeNewMessage;
