@@ -747,20 +747,88 @@
 }
 
 @media (max-width: 768px) {
+    /* Make grids single-column for narrow screens */
     .quick-stats,
     .actions-grid,
     .profiles-grid {
         grid-template-columns: 1fr;
     }
-    
+
+    /* Stack top bar vertically and allow the search to take full width */
     .top-bar {
         flex-direction: column;
-        gap: 15px;
+        gap: 12px;
+        align-items: stretch;
     }
-    
+
     .search-bar {
         max-width: 100%;
     }
+
+    /* Sidebar becomes an off-canvas menu to save space */
+    .sidebar {
+        position: fixed;
+        top: 0;
+        left: 0;
+        height: 100vh;
+        width: 260px;
+        transform: translateX(-100%);
+        transition: transform 0.25s ease;
+        z-index: 9999;
+    }
+
+    .sidebar.active {
+        transform: translateX(0);
+    }
+
+    /* Make the menu toggle visible and float above content */
+    .menu-toggle {
+        display: block;
+        position: fixed;
+        top: 18px;
+        left: 18px;
+        z-index: 10001;
+    }
+
+    /* Hide right-side chat/online panel on small screens */
+    .right-sidebar {
+        display: none;
+    }
+
+    /* Reduce paddings and font sizes for main content */
+    .main-content {
+        margin-left: 0;
+        padding: 12px;
+    }
+
+    .welcome-section h1 {
+        font-size: 20px;
+    }
+
+    /* Smaller avatar in sidebar */
+    .user-profile .avatar img {
+        width: 44px;
+        height: 44px;
+    }
+
+    /* Slightly tighter stat cards */
+    .stat-card {
+        padding: 12px;
+    }
+
+    /* Ensure action cards occupy full width */
+    .action-card {
+        padding: 16px;
+    }
+}
+
+/* Extra small devices tweaks */
+@media (max-width: 480px) {
+    .sidebar { width: 240px; }
+    .welcome-section h1 { font-size: 18px; }
+    .user-profile .avatar img { width: 40px; height: 40px; }
+    .stat-info h3 { font-size: 18px; }
+    .action-card h3 { font-size: 16px; }
 }
 
 /* Upload Photos Specific Styles */

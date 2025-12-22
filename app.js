@@ -223,7 +223,7 @@ async function redirectAfterLogin(uid) {
         window.location.href = 'dashboard.html';
     }
 }
-}
+
 
 // Handle registration
 async function handleRegistration(e) {

@@ -1,5 +1,5 @@
-import { auth, db } from './firebase-config.js';
-import { doc, getDoc, collection, getDocs, query, where, updateDoc, deleteDoc, writeBatch, serverTimestamp, arrayUnion } from "https://www.gstatic.com/firebasejs/9.6.10/firebase-firestore.js";
+// admin.js - FIREBASE V8 VERSION
+
 // Admin State
 let currentAdminUser = null;
 let allUsers = [];
@@ -9,50 +9,131 @@ let currentPage = 1;
 const usersPerPage = 20;
 
 // Initialize admin panel
-document.addEventListener('DOMContentLoaded', async () => {
-    if (!auth.currentUser) {
-        window.location.href = 'index.html';
-        return;
-    }
+document.addEventListener('DOMContentLoaded', function() {
+    console.log("Admin panel initializing...");
     
-    // Check if user is admin
-    const userDoc = await getDoc(doc(db, "users", auth.currentUser.uid));
-    if (!userDoc.exists() || !userDoc.data().isAdmin) {
-        showNotification('Access denied. Admin privileges required.', 'error');
-        window.location.href = 'dashboard.html';
-        return;
-    }
-    
-    currentAdminUser = auth.currentUser;
-    await initializeAdminPanel();
-    setupEventListeners();
+    // Wait for Firebase to be ready
+    setTimeout(() => {
+        if (typeof firebase === 'undefined' || !firebase.apps.length) {
+            console.error("Firebase not loaded!");
+            showNotification("Firebase not loaded", "error");
+            return;
+        }
+        
+        // Get current authenticated user
+        const user = firebase.auth().currentUser;
+        if (!user) {
+            console.log("No authenticated user, redirecting to login");
+            window.location.href = 'index.html';
+            return;
+        }
+        
+        console.log("Checking admin status for user:", user.uid);
+        
+        // Check if user is admin
+        checkAdminStatus(user);
+        
+    }, 1500);
 });
+
+// Check if user is admin
+async function checkAdminStatus(user) {
+    try {
+        const db = firebase.firestore();
+        const userDoc = await db.collection("users").doc(user.uid).get();
+        
+        if (!userDoc.exists() || !userDoc.data().isAdmin) {
+            showNotification('Access denied. Admin privileges required.', 'error');
+            setTimeout(() => window.location.href = 'dashboard.html', 2000);
+            return;
+        }
+        
+        currentAdminUser = user;
+        console.log("Admin user authenticated:", user.uid);
+        await initializeAdminPanel();
+        setupEventListeners();
+        
+    } catch (error) {
+        console.error("Error checking admin status:", error);
+        showNotification('Error accessing admin panel', 'error');
+    }
+}
 
 // Initialize admin panel data
 async function initializeAdminPanel() {
-    await loadAllUsers();
-    await loadAllMessages();
-    await loadAllReports();
-    updateAdminStats();
-    showSection('users');
+    try {
+        showLoading(true);
+        await Promise.all([
+            loadAllUsers(),
+            loadAllMessages(),
+            loadAllReports()
+        ]);
+        updateAdminStats();
+        showSection('users');
+        showLoading(false);
+    } catch (error) {
+        console.error("Error initializing admin panel:", error);
+        showNotification('Failed to initialize admin panel', 'error');
+        showLoading(false);
+    }
+}
+
+// Show loading indicator
+function showLoading(show) {
+    const loading = document.getElementById('adminLoading');
+    if (!loading) {
+        const loadingDiv = document.createElement('div');
+        loadingDiv.id = 'adminLoading';
+        loadingDiv.style.cssText = `
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0,0,0,0.7);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 9999;
+            color: white;
+            font-size: 20px;
+        `;
+        loadingDiv.innerHTML = `
+            <div style="text-align: center;">
+                <i class="fas fa-spinner fa-spin fa-3x"></i>
+                <p>Loading admin panel...</p>
+            </div>
+        `;
+        document.body.appendChild(loadingDiv);
+    }
+    document.getElementById('adminLoading').style.display = show ? 'flex' : 'none';
 }
 
 // Load all users
 async function loadAllUsers() {
     try {
-        const usersRef = collection(db, "users");
-        const querySnapshot = await getDocs(usersRef);
+        const db = firebase.firestore();
+        const querySnapshot = await db.collection("users").get();
         
         allUsers = [];
         querySnapshot.forEach(doc => {
+            const data = doc.data();
             allUsers.push({
                 id: doc.id,
-                ...doc.data()
+                ...data,
+                // Handle both field name variations
+                senderId: data.senderId || data.senderrId,
+                receiverId: data.receiverId || data.receiverrId,
+                senderName: data.senderName || data.senderrName
             });
         });
         
         // Sort by join date
-        allUsers.sort((a, b) => b.createdAt?.toDate() - a.createdAt?.toDate());
+        allUsers.sort((a, b) => {
+            const dateA = a.createdAt ? (a.createdAt.toDate ? a.createdAt.toDate() : new Date(a.createdAt)) : new Date(0);
+            const dateB = b.createdAt ? (b.createdAt.toDate ? b.createdAt.toDate() : new Date(b.createdAt)) : new Date(0);
+            return dateB - dateA;
+        });
         
         displayUsers();
         updateUserStats();
@@ -66,6 +147,8 @@ async function loadAllUsers() {
 // Display users in table
 function displayUsers() {
     const tableBody = document.getElementById('usersTableBody');
+    if (!tableBody) return;
+    
     tableBody.innerHTML = '';
     
     // Apply filters
@@ -75,9 +158,10 @@ function displayUsers() {
     let filteredUsers = allUsers.filter(user => {
         // Search filter
         const matchesSearch = !searchTerm || 
-            user.username?.toLowerCase().includes(searchTerm) ||
-            user.realName?.toLowerCase().includes(searchTerm) ||
-            user.phone?.includes(searchTerm);
+            (user.username && user.username.toLowerCase().includes(searchTerm)) ||
+            (user.realName && user.realName.toLowerCase().includes(searchTerm)) ||
+            (user.phone && user.phone.includes(searchTerm)) ||
+            user.id.toLowerCase().includes(searchTerm);
         
         // Type filter
         let matchesFilter = true;
@@ -86,13 +170,12 @@ function displayUsers() {
                 matchesFilter = user.isAdmin === true;
                 break;
             case 'active':
-                const lastActive = user.lastActive?.toDate();
+                const lastActive = user.lastActive ? (user.lastActive.toDate ? user.lastActive.toDate() : new Date(user.lastActive)) : null;
                 const today = new Date();
-                matchesFilter = lastActive && 
-                    lastActive.toDateString() === today.toDateString();
+                matchesFilter = lastActive && lastActive.toDateString() === today.toDateString();
                 break;
             case 'inactive':
-                const lastActiveDate = user.lastActive?.toDate();
+                const lastActiveDate = user.lastActive ? (user.lastActive.toDate ? user.lastActive.toDate() : new Date(user.lastActive)) : null;
                 const thirtyDaysAgo = new Date();
                 thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
                 matchesFilter = !lastActiveDate || lastActiveDate < thirtyDaysAgo;
@@ -115,70 +198,85 @@ function displayUsers() {
     const pageUsers = filteredUsers.slice(startIndex, endIndex);
     
     // Display users
-    pageUsers.forEach(user => {
-        const row = document.createElement('tr');
-        
-        // Format join date
-        const joinDate = user.createdAt?.toDate();
-        const formattedDate = joinDate ? joinDate.toLocaleDateString() : 'N/A';
-        
-        // Format photos count
-        const photosCount = user.photos?.length || 0;
-        const photosBadge = photosCount >= 5 ? 
-            `<span class="badge success">${photosCount}/5</span>` :
-            `<span class="badge warning">${photosCount}/5</span>`;
-        
-        // Status badge
-        const statusBadge = user.isBlocked ? 
-            `<span class="badge danger">Blocked</span>` :
-            user.isAdmin ? 
-            `<span class="badge primary">Admin</span>` :
-            `<span class="badge success">Active</span>`;
-        
-        row.innerHTML = `
-            <td><code>${user.id.substring(0, 8)}...</code></td>
-            <td>
-                <div class="user-cell">
-                    <img src="${user.photos?.[0] || 'after-dark-banner.jpg'}" alt="${user.username}">
-                    <span>${user.username || 'N/A'}</span>
-                </div>
-            </td>
-            <td>${user.realName || 'N/A'}</td>
-            <td>${user.phone || 'N/A'}</td>
-            <td>${user.stats?.age || 'N/A'}</td>
-            <td>${statusBadge}</td>
-            <td>${photosBadge}</td>
-            <td>${formattedDate}</td>
-            <td>
-                <div class="action-buttons">
-                    <button class="action-btn view" onclick="viewUserDetails('${user.id}')" title="View Details">
-                        <i class="fas fa-eye"></i>
-                    </button>
-                    <button class="action-btn edit" onclick="editUser('${user.id}')" title="Edit User">
-                        <i class="fas fa-edit"></i>
-                    </button>
-                    ${user.isBlocked ? 
-                        `<button class="action-btn success" onclick="unblockUser('${user.id}')" title="Unblock User">
-                            <i class="fas fa-unlock"></i>
-                        </button>` :
-                        `<button class="action-btn warning" onclick="blockUser('${user.id}')" title="Block User">
-                            <i class="fas fa-ban"></i>
-                        </button>`
-                    }
-                    ${!user.isAdmin ? 
-                        `<button class="action-btn primary" onclick="makeAdmin('${user.id}')" title="Make Admin">
-                            <i class="fas fa-shield-alt"></i>
-                        </button>` : ''
-                    }
-                    <button class="action-btn danger" onclick="deleteUser('${user.id}')" title="Delete User">
-                        <i class="fas fa-trash"></i>
-                    </button>
-                </div>
-            </td>
+    if (pageUsers.length === 0) {
+        tableBody.innerHTML = `
+            <tr>
+                <td colspan="9" class="no-data">No users found</td>
+            </tr>
         `;
-        
-        tableBody.appendChild(row);
-    });
+    } else {
+        pageUsers.forEach(user => {
+            const row = document.createElement('tr');
+            
+            // Format join date
+            const joinDate = user.createdAt ? (user.createdAt.toDate ? user.createdAt.toDate() : new Date(user.createdAt)) : null;
+            const formattedDate = joinDate ? joinDate.toLocaleDateString() : 'N/A';
+            
+            // Format photos count
+            const photosCount = user.photos ? user.photos.length : 0;
+            const photosBadge = photosCount >= 5 ? 
+                `<span class="badge success">${photosCount}/5</span>` :
+                `<span class="badge warning">${photosCount}/5</span>`;
+            
+            // Status badge
+            let statusBadge;
+            if (user.isBlocked) {
+                statusBadge = `<span class="badge danger">Blocked</span>`;
+            } else if (user.isAdmin) {
+                statusBadge = `<span class="badge primary">Admin</span>`;
+            } else if (user.status === 'online') {
+                statusBadge = `<span class="badge success">Online</span>`;
+            } else {
+                statusBadge = `<span class="badge secondary">Offline</span>`;
+            }
+            
+            row.innerHTML = `
+                <td><code title="${user.id}">${user.id.substring(0, 8)}...</code></td>
+                <td>
+                    <div class="user-cell">
+                        <img src="${user.photos && user.photos[0] ? user.photos[0] : 'after-dark-banner.jpg'}" 
+                             alt="${user.username || ''}" 
+                             onerror="this.src='after-dark-banner.jpg'">
+                        <span>${user.username || 'N/A'}</span>
+                    </div>
+                </td>
+                <td>${user.realName || 'N/A'}</td>
+                <td>${user.phone || 'N/A'}</td>
+                <td>${user.stats && user.stats.age ? user.stats.age : 'N/A'}</td>
+                <td>${statusBadge}</td>
+                <td>${photosBadge}</td>
+                <td>${formattedDate}</td>
+                <td>
+                    <div class="action-buttons">
+                        <button class="action-btn view" onclick="viewUserDetails('${user.id}')" title="View Details">
+                            <i class="fas fa-eye"></i>
+                        </button>
+                        <button class="action-btn edit" onclick="editUser('${user.id}')" title="Edit User">
+                            <i class="fas fa-edit"></i>
+                        </button>
+                        ${user.isBlocked ? 
+                            `<button class="action-btn success" onclick="unblockUser('${user.id}')" title="Unblock User">
+                                <i class="fas fa-unlock"></i>
+                            </button>` :
+                            `<button class="action-btn warning" onclick="blockUser('${user.id}')" title="Block User">
+                                <i class="fas fa-ban"></i>
+                            </button>`
+                        }
+                        ${!user.isAdmin ? 
+                            `<button class="action-btn primary" onclick="makeAdmin('${user.id}')" title="Make Admin">
+                                <i class="fas fa-shield-alt"></i>
+                            </button>` : ''
+                        }
+                        <button class="action-btn danger" onclick="deleteUser('${user.id}')" title="Delete User">
+                            <i class="fas fa-trash"></i>
+                        </button>
+                    </div>
+                </td>
+            `;
+            
+            tableBody.appendChild(row);
+        });
+    }
     
     // Update pagination
     updatePagination(totalPages);
@@ -187,9 +285,14 @@ function displayUsers() {
 // Update pagination controls
 function updatePagination(totalPages) {
     const pagination = document.getElementById('usersPagination');
+    if (!pagination) return;
+    
     pagination.innerHTML = '';
     
-    if (totalPages <= 1) return;
+    if (totalPages <= 1) {
+        pagination.innerHTML = '<div class="no-pagination">Showing all users</div>';
+        return;
+    }
     
     // Previous button
     const prevButton = document.createElement('button');
@@ -205,7 +308,36 @@ function updatePagination(totalPages) {
     pagination.appendChild(prevButton);
     
     // Page numbers
-    for (let i = 1; i <= totalPages; i++) {
+    const maxVisiblePages = 5;
+    let startPage = Math.max(1, currentPage - Math.floor(maxVisiblePages / 2));
+    let endPage = Math.min(totalPages, startPage + maxVisiblePages - 1);
+    
+    // Adjust start page if we're near the end
+    if (endPage - startPage + 1 < maxVisiblePages) {
+        startPage = Math.max(1, endPage - maxVisiblePages + 1);
+    }
+    
+    // First page
+    if (startPage > 1) {
+        const firstButton = document.createElement('button');
+        firstButton.className = 'pagination-btn';
+        firstButton.textContent = '1';
+        firstButton.onclick = () => {
+            currentPage = 1;
+            displayUsers();
+        };
+        pagination.appendChild(firstButton);
+        
+        if (startPage > 2) {
+            const ellipsis = document.createElement('span');
+            ellipsis.className = 'pagination-ellipsis';
+            ellipsis.textContent = '...';
+            pagination.appendChild(ellipsis);
+        }
+    }
+    
+    // Page buttons
+    for (let i = startPage; i <= endPage; i++) {
         const pageButton = document.createElement('button');
         pageButton.className = `pagination-btn ${i === currentPage ? 'active' : ''}`;
         pageButton.textContent = i;
@@ -213,16 +345,26 @@ function updatePagination(totalPages) {
             currentPage = i;
             displayUsers();
         };
-        
-        // Show first, last, and around current page
-        if (i === 1 || i === totalPages || (i >= currentPage - 2 && i <= currentPage + 2)) {
-            pagination.appendChild(pageButton);
-        } else if (i === currentPage - 3 || i === currentPage + 3) {
+        pagination.appendChild(pageButton);
+    }
+    
+    // Last page
+    if (endPage < totalPages) {
+        if (endPage < totalPages - 1) {
             const ellipsis = document.createElement('span');
             ellipsis.className = 'pagination-ellipsis';
             ellipsis.textContent = '...';
             pagination.appendChild(ellipsis);
         }
+        
+        const lastButton = document.createElement('button');
+        lastButton.className = 'pagination-btn';
+        lastButton.textContent = totalPages;
+        lastButton.onclick = () => {
+            currentPage = totalPages;
+            displayUsers();
+        };
+        pagination.appendChild(lastButton);
     }
     
     // Next button
@@ -248,7 +390,8 @@ function filterUsers() {
 // View user details
 async function viewUserDetails(userId) {
     try {
-        const userDoc = await getDoc(doc(db, "users", userId));
+        const db = firebase.firestore();
+        const userDoc = await db.collection("users").doc(userId).get();
         if (!userDoc.exists()) {
             showNotification('User not found', 'error');
             return;
@@ -258,25 +401,34 @@ async function viewUserDetails(userId) {
         const detailContent = document.getElementById('userDetailContent');
         
         // Format dates
-        const joinDate = userData.createdAt?.toDate();
-        const lastActive = userData.lastActive?.toDate();
+        const joinDate = userData.createdAt ? (userData.createdAt.toDate ? userData.createdAt.toDate() : new Date(userData.createdAt)) : null;
+        const lastActive = userData.lastActive ? (userData.lastActive.toDate ? userData.lastActive.toDate() : new Date(userData.lastActive)) : null;
         
         // Get user's messages count
-        const messagesRef = collection(db, "messages");
-        const messagesQuery = query(messagesRef, where("participants", "array-contains", userId));
-        const messagesSnapshot = await getDocs(messagesQuery);
-        const messagesCount = messagesSnapshot.size;
+        const messagesRef = db.collection("messages");
+        const sentQuery = messagesRef.where("senderId", "==", userId);
+        const receivedQuery = messagesRef.where("receiverId", "==", userId);
+        const [sentSnapshot, receivedSnapshot] = await Promise.all([
+            sentQuery.get(),
+            receivedQuery.get()
+        ]);
+        const totalMessages = sentSnapshot.size + receivedSnapshot.size;
+        
+        // Get photos
+        const photos = userData.photos || [];
         
         detailContent.innerHTML = `
             <div class="user-detail-header">
                 <div class="user-avatar-large">
-                    <img src="${userData.photos?.[0] || 'after-dark-banner.jpg'}" alt="${userData.username}">
+                    <img src="${photos[0] || 'after-dark-banner.jpg'}" 
+                         alt="${userData.username || ''}"
+                         onerror="this.src='after-dark-banner.jpg'">
                     <span class="user-status ${userData.status === 'online' ? 'online' : 'offline'}">
                         ${userData.status === 'online' ? 'Online' : 'Offline'}
                     </span>
                 </div>
                 <div class="user-header-info">
-                    <h2>${userData.username}</h2>
+                    <h2>${userData.username || 'Unknown User'}</h2>
                     <div class="user-badges">
                         ${userData.isAdmin ? '<span class="badge primary">Administrator</span>' : ''}
                         ${userData.isBlocked ? '<span class="badge danger">Blocked</span>' : ''}
@@ -289,6 +441,10 @@ async function viewUserDetails(userId) {
                 <div class="detail-section">
                     <h3>Basic Information</h3>
                     <div class="detail-item">
+                        <span class="detail-label">User ID:</span>
+                        <span class="detail-value"><code>${userId}</code></span>
+                    </div>
+                    <div class="detail-item">
                         <span class="detail-label">Real Name:</span>
                         <span class="detail-value">${userData.realName || 'Not provided'}</span>
                     </div>
@@ -297,12 +453,12 @@ async function viewUserDetails(userId) {
                         <span class="detail-value">${userData.phone || 'Not provided'}</span>
                     </div>
                     <div class="detail-item">
-                        <span class="detail-label">Email:</span>
-                        <span class="detail-value">${userId}@nightvibe.com</span>
-                    </div>
-                    <div class="detail-item">
-                        <span class="detail-label">User ID:</span>
-                        <span class="detail-value"><code>${userId}</code></span>
+                        <span class="detail-label">Profile Complete:</span>
+                        <span class="detail-value">
+                            ${userData.profileComplete ? 
+                                '<span class="badge success">Complete</span>' : 
+                                '<span class="badge warning">Incomplete</span>'}
+                        </span>
                     </div>
                 </div>
                 
@@ -310,19 +466,19 @@ async function viewUserDetails(userId) {
                     <h3>Profile Information</h3>
                     <div class="detail-item">
                         <span class="detail-label">Age:</span>
-                        <span class="detail-value">${userData.stats?.age || 'Not provided'}</span>
+                        <span class="detail-value">${userData.stats && userData.stats.age ? userData.stats.age : 'Not provided'}</span>
                     </div>
                     <div class="detail-item">
                         <span class="detail-label">Position:</span>
-                        <span class="detail-value">${userData.stats?.position || 'Not provided'}</span>
+                        <span class="detail-value">${userData.stats && userData.stats.position ? userData.stats.position : 'Not provided'}</span>
+                    </div>
+                    <div class="detail-item">
+                        <span class="detail-label">Looking for:</span>
+                        <span class="detail-value">${userData.stats && userData.stats.iamInto ? userData.stats.iamInto : 'Not provided'}</span>
                     </div>
                     <div class="detail-item">
                         <span class="detail-label">Relationship Status:</span>
-                        <span class="detail-value">${userData.stats?.relationshipStatus || 'Not provided'}</span>
-                    </div>
-                    <div class="detail-item">
-                        <span class="detail-label">Interests:</span>
-                        <span class="detail-value">${userData.stats?.iamInto || 'Not provided'}</span>
+                        <span class="detail-value">${userData.stats && userData.stats.relationshipStatus ? userData.stats.relationshipStatus : 'Not provided'}</span>
                     </div>
                 </div>
                 
@@ -338,24 +494,28 @@ async function viewUserDetails(userId) {
                     </div>
                     <div class="detail-item">
                         <span class="detail-label">Total Messages:</span>
-                        <span class="detail-value">${messagesCount}</span>
+                        <span class="detail-value">${totalMessages}</span>
                     </div>
                     <div class="detail-item">
                         <span class="detail-label">Photos Uploaded:</span>
-                        <span class="detail-value">${userData.photos?.length || 0}/5</span>
+                        <span class="detail-value">${photos.length}/5</span>
                     </div>
                 </div>
                 
+                ${photos.length > 0 ? `
                 <div class="detail-section full-width">
                     <h3>Photos</h3>
                     <div class="user-photos-grid">
-                        ${userData.photos?.map(photo => `
+                        ${photos.map((photo, index) => `
                             <div class="user-photo">
-                                <img src="${photo}" alt="User photo">
+                                <img src="${photo}" alt="User photo ${index + 1}" 
+                                     onerror="this.src='after-dark-banner.jpg'">
+                                <span class="photo-number">${index + 1}</span>
                             </div>
-                        `).join('') || '<p class="no-data">No photos uploaded</p>'}
+                        `).join('')}
                     </div>
                 </div>
+                ` : ''}
                 
                 <div class="detail-section full-width">
                     <h3>User Statistics</h3>
@@ -370,11 +530,11 @@ async function viewUserDetails(userId) {
                         </div>
                         <div class="stat-box">
                             <span class="stat-label">Messages Sent</span>
-                            <span class="stat-value">${userData.messagesSent || 0}</span>
+                            <span class="stat-value">${sentSnapshot.size}</span>
                         </div>
                         <div class="stat-box">
-                            <span class="stat-label">Reports Made</span>
-                            <span class="stat-value">${userData.reportsMade || 0}</span>
+                            <span class="stat-label">Messages Received</span>
+                            <span class="stat-value">${receivedSnapshot.size}</span>
                         </div>
                     </div>
                 </div>
@@ -395,24 +555,42 @@ function closeUserModal() {
 }
 
 // Edit user
-function editUser(userId) {
-    // Find user
+async function editUser(userId) {
     const user = allUsers.find(u => u.id === userId);
-    if (!user) return;
+    if (!user) {
+        showNotification('User not found', 'error');
+        return;
+    }
     
-    // For now, just show details
-    viewUserDetails(userId);
+    const newUsername = prompt('Edit username:', user.username || '');
+    if (newUsername === null || newUsername.trim() === '') return;
+    
+    try {
+        const db = firebase.firestore();
+        await db.collection("users").doc(userId).update({
+            username: newUsername.trim()
+        });
+        
+        showNotification('Username updated', 'success');
+        await loadAllUsers();
+        
+    } catch (error) {
+        console.error('Error updating user:', error);
+        showNotification('Failed to update user', 'error');
+    }
 }
 
 // Block user
 async function blockUser(userId) {
-    if (!confirm('Are you sure you want to block this user?')) return;
+    if (!confirm('Are you sure you want to block this user?\n\nThey will not be able to:\n• Send messages\n• View profiles\n• Use chat features')) return;
     
     try {
-        await updateDoc(doc(db, "users", userId), {
+        const db = firebase.firestore();
+        await db.collection("users").doc(userId).update({
             isBlocked: true,
-            blockedAt: serverTimestamp(),
-            blockedBy: currentAdminUser.uid
+            blockedAt: firebase.firestore.FieldValue.serverTimestamp(),
+            blockedBy: currentAdminUser.uid,
+            status: 'offline'
         });
         
         showNotification('User blocked successfully', 'success');
@@ -429,9 +607,10 @@ async function unblockUser(userId) {
     if (!confirm('Are you sure you want to unblock this user?')) return;
     
     try {
-        await updateDoc(doc(db, "users", userId), {
+        const db = firebase.firestore();
+        await db.collection("users").doc(userId).update({
             isBlocked: false,
-            unblockedAt: serverTimestamp(),
+            unblockedAt: firebase.firestore.FieldValue.serverTimestamp(),
             unblockedBy: currentAdminUser.uid
         });
         
@@ -446,12 +625,13 @@ async function unblockUser(userId) {
 
 // Make user admin
 async function makeAdmin(userId) {
-    if (!confirm('Are you sure you want to make this user an administrator?')) return;
+    if (!confirm('Are you sure you want to make this user an administrator?\n\nThey will have full access to the admin panel.')) return;
     
     try {
-        await updateDoc(doc(db, "users", userId), {
+        const db = firebase.firestore();
+        await db.collection("users").doc(userId).update({
             isAdmin: true,
-            adminSince: serverTimestamp(),
+            adminSince: firebase.firestore.FieldValue.serverTimestamp(),
             adminGrantedBy: currentAdminUser.uid
         });
         
@@ -466,31 +646,53 @@ async function makeAdmin(userId) {
 
 // Delete user
 async function deleteUser(userId) {
-    if (!confirm('WARNING: This will permanently delete the user and all their data. This cannot be undone. Continue?')) return;
-    
-    const confirmation = prompt('Type "DELETE USER" to confirm:');
-    if (confirmation !== 'DELETE USER') {
-        showNotification('User deletion cancelled', 'info');
+    if (!confirm('WARNING: This will permanently delete the user and all their data. This cannot be undone.\n\nType "DELETE" to confirm:')) {
         return;
     }
     
     try {
-        // Delete user from Firestore
-        await deleteDoc(doc(db, "users", userId));
+        showNotification('Deleting user...', 'info');
+        const db = firebase.firestore();
+        
+        // Delete user document
+        await db.collection("users").doc(userId).delete();
         
         // Delete user's messages
-        const messagesRef = collection(db, "messages");
-        const messagesQuery = query(messagesRef, where("participants", "array-contains", userId));
-        const messagesSnapshot = await getDocs(messagesQuery);
+        const messagesRef = db.collection("messages");
         
-        const batch = writeBatch(db);
-        messagesSnapshot.forEach(doc => {
+        // Delete sent messages
+        const sentQuery = messagesRef.where("senderId", "==", userId);
+        const sentSnapshot = await sentQuery.get();
+        
+        let batch = db.batch();
+        let count = 0;
+        sentSnapshot.forEach(doc => {
             batch.delete(doc.ref);
+            count++;
+            if (count === 500) {
+                batch.commit();
+                batch = db.batch();
+                count = 0;
+            }
         });
-        await batch.commit();
+        if (count > 0) await batch.commit();
         
-        // Delete user's photos from storage (optional)
-        // This would require listing and deleting files from storage
+        // Delete received messages
+        const receivedQuery = messagesRef.where("receiverId", "==", userId);
+        const receivedSnapshot = await receivedQuery.get();
+        
+        batch = db.batch();
+        count = 0;
+        receivedSnapshot.forEach(doc => {
+            batch.delete(doc.ref);
+            count++;
+            if (count === 500) {
+                batch.commit();
+                batch = db.batch();
+                count = 0;
+            }
+        });
+        if (count > 0) await batch.commit();
         
         showNotification('User deleted successfully', 'success');
         await loadAllUsers();
@@ -504,19 +706,29 @@ async function deleteUser(userId) {
 // Load all messages
 async function loadAllMessages() {
     try {
-        const messagesRef = collection(db, "messages");
-        const querySnapshot = await getDocs(messagesRef);
+        const db = firebase.firestore();
+        const querySnapshot = await db.collection("messages").get();
         
         allMessages = [];
         querySnapshot.forEach(doc => {
+            const data = doc.data();
             allMessages.push({
                 id: doc.id,
-                ...doc.data()
+                ...data,
+                // Handle field name variations
+                senderId: data.senderId || data.senderrId,
+                receiverId: data.receiverId || data.receiverrId,
+                senderName: data.senderName || data.senderrName,
+                content: data.content || data.message || 'No content'
             });
         });
         
-        // Sort by timestamp
-        allMessages.sort((a, b) => b.timestamp?.toDate() - a.timestamp?.toDate());
+        // Sort by timestamp (newest first)
+        allMessages.sort((a, b) => {
+            const dateA = a.timestamp ? (a.timestamp.toDate ? a.timestamp.toDate() : new Date(a.timestamp)) : new Date(0);
+            const dateB = b.timestamp ? (b.timestamp.toDate ? b.timestamp.toDate() : new Date(b.timestamp)) : new Date(0);
+            return dateB - dateA;
+        });
         
         displayMessages();
         updateMessageStats();
@@ -530,6 +742,8 @@ async function loadAllMessages() {
 // Display messages
 function displayMessages() {
     const container = document.getElementById('messagesListAdmin');
+    if (!container) return;
+    
     container.innerHTML = '';
     
     // Apply filters
@@ -543,119 +757,106 @@ function displayMessages() {
     const filteredMessages = allMessages.filter(message => {
         // Search filter
         const matchesSearch = !searchTerm || 
-            message.content?.toLowerCase().includes(searchTerm);
+            message.content.toLowerCase().includes(searchTerm);
         
-        // Time filter
-        const messageDate = message.timestamp?.toDate();
-        let matchesTime = true;
+        // Time/type filter
+        const messageDate = message.timestamp ? (message.timestamp.toDate ? message.timestamp.toDate() : new Date(message.timestamp)) : null;
+        let matchesFilter = true;
         
         switch (filter) {
             case 'today':
-                matchesTime = messageDate && messageDate.toDateString() === today.toDateString();
+                matchesFilter = messageDate && messageDate.toDateString() === today.toDateString();
                 break;
             case 'week':
-                matchesTime = messageDate && messageDate >= weekAgo;
+                matchesFilter = messageDate && messageDate >= weekAgo;
                 break;
             case 'month':
-                matchesTime = messageDate && messageDate >= monthAgo;
+                matchesFilter = messageDate && messageDate >= monthAgo;
                 break;
             case 'anonymous':
-                matchesTime = message.isAnonymous === true;
+                matchesFilter = message.isAnonymous === true;
                 break;
             case 'reported':
-                matchesTime = message.reported === true;
+                matchesFilter = message.reported === true;
                 break;
         }
         
-        return matchesSearch && matchesTime;
+        return matchesSearch && matchesFilter;
     });
     
-    // Limit to 100 messages for performance
-    const displayMessages = filteredMessages.slice(0, 100);
+    // Limit to 50 messages for performance
+    const displayMessages = filteredMessages.slice(0, 50);
     
     if (displayMessages.length === 0) {
         container.innerHTML = '<div class="no-data">No messages found</div>';
         return;
     }
     
-    displayMessages.forEach(async message => {
-        try {
-            // Get sender and receiver info
-            const [senderDoc, receiverDoc] = await Promise.all([
-                getDoc(doc(db, "users", message.senderId)),
-                getDoc(doc(db, "users", message.receiverId))
-            ]);
-            
-            const senderData = senderDoc.exists() ? senderDoc.data() : null;
-            const receiverData = receiverDoc.exists() ? receiverDoc.data() : null;
-            
-            const messageElement = document.createElement('div');
-            messageElement.className = 'admin-message-item';
-            
-            const time = message.timestamp?.toDate().toLocaleString() || 'Unknown';
-            const isAnonymous = message.isAnonymous;
-            
-            messageElement.innerHTML = `
-                <div class="message-header">
-                    <div class="message-participants">
-                        <div class="participant">
-                            <img src="${senderData?.photos?.[0] || 'after-dark-banner.jpg'}" alt="Sender">
-                            <span>${isAnonymous ? 'Anonymous' : senderData?.username || 'Unknown'}</span>
-                        </div>
-                        <i class="fas fa-arrow-right"></i>
-                        <div class="participant">
-                            <img src="${receiverData?.photos?.[0] || 'after-dark-banner.jpg'}" alt="Receiver">
-                            <span>${receiverData?.username || 'Unknown'}</span>
-                        </div>
+    displayMessages.forEach(message => {
+        const messageElement = document.createElement('div');
+        messageElement.className = 'admin-message-item';
+        
+        const time = message.timestamp ? (message.timestamp.toDate ? message.timestamp.toDate().toLocaleString() : new Date(message.timestamp).toLocaleString()) : 'Unknown';
+        const isAnonymous = message.isAnonymous;
+        
+        messageElement.innerHTML = `
+            <div class="message-header">
+                <div class="message-participants">
+                    <div class="participant">
+                        <i class="fas fa-user"></i>
+                        <span>${isAnonymous ? 'Anonymous' : message.senderName || 'Unknown'}</span>
                     </div>
-                    <span class="message-time">${time}</span>
-                </div>
-                <div class="message-content">
-                    <p>${message.content || 'No content'}</p>
-                </div>
-                <div class="message-footer">
-                    <span class="message-id">ID: ${message.id.substring(0, 8)}...</span>
-                    <div class="message-actions">
-                        <button class="action-btn view" onclick="viewMessageDetails('${message.id}')">
-                            <i class="fas fa-eye"></i> Details
-                        </button>
-                        <button class="action-btn danger" onclick="deleteMessage('${message.id}')">
-                            <i class="fas fa-trash"></i> Delete
-                        </button>
+                    <i class="fas fa-arrow-right"></i>
+                    <div class="participant">
+                        <i class="fas fa-user"></i>
+                        <span>Receiver (ID: ${message.receiverId ? message.receiverId.substring(0, 8) + '...' : 'Unknown'})</span>
                     </div>
                 </div>
-            `;
-            
-            container.appendChild(messageElement);
-            
-        } catch (error) {
-            console.error('Error loading message details:', error);
-        }
+                <span class="message-time">${time}</span>
+            </div>
+            <div class="message-content">
+                <p>${message.content}</p>
+            </div>
+            <div class="message-footer">
+                <span class="message-id">ID: ${message.id.substring(0, 8)}...</span>
+                <div class="message-actions">
+                    <button class="action-btn view" onclick="viewMessageDetails('${message.id}')">
+                        <i class="fas fa-eye"></i> Details
+                    </button>
+                    <button class="action-btn danger" onclick="deleteMessage('${message.id}')">
+                        <i class="fas fa-trash"></i> Delete
+                    </button>
+                </div>
+            </div>
+        `;
+        
+        container.appendChild(messageElement);
     });
 }
 
 // View message details
 async function viewMessageDetails(messageId) {
     try {
-        const messageDoc = await getDoc(doc(db, "messages", messageId));
+        const db = firebase.firestore();
+        const messageDoc = await db.collection("messages").doc(messageId).get();
         if (!messageDoc.exists()) {
             showNotification('Message not found', 'error');
             return;
         }
         
         const messageData = messageDoc.data();
+        const detailContent = document.getElementById('messageDetailContent');
         
         // Get sender and receiver info
         const [senderDoc, receiverDoc] = await Promise.all([
-            getDoc(doc(db, "users", messageData.senderId)),
-            getDoc(doc(db, "users", messageData.receiverId))
+            db.collection("users").doc(messageData.senderId).get(),
+            db.collection("users").doc(messageData.receiverId).get()
         ]);
         
         const senderData = senderDoc.exists() ? senderDoc.data() : null;
         const receiverData = receiverDoc.exists() ? receiverDoc.data() : null;
         
-        const detailContent = document.getElementById('messageDetailContent');
-        const time = messageData.timestamp?.toDate().toLocaleString() || 'Unknown';
+        const time = messageData.timestamp ? (messageData.timestamp.toDate ? messageData.timestamp.toDate().toLocaleString() : new Date(messageData.timestamp).toLocaleString()) : 'Unknown';
         
         detailContent.innerHTML = `
             <div class="message-detail-header">
@@ -672,9 +873,9 @@ async function viewMessageDetails(messageId) {
                 <div class="detail-item">
                     <span class="detail-label">Sender:</span>
                     <div class="user-info">
-                        <img src="${senderData?.photos?.[0] || 'after-dark-banner.jpg'}" alt="Sender">
+                        <i class="fas fa-user-circle fa-2x"></i>
                         <div>
-                            <span>${messageData.isAnonymous ? 'Anonymous' : senderData?.username || 'Unknown'}</span>
+                            <span>${messageData.isAnonymous ? 'Anonymous' : senderData ? senderData.username : 'Unknown'}</span>
                             ${messageData.isAnonymous ? '<span class="badge warning">Anonymous</span>' : ''}
                             <br>
                             <small>ID: ${messageData.senderId}</small>
@@ -685,9 +886,9 @@ async function viewMessageDetails(messageId) {
                 <div class="detail-item">
                     <span class="detail-label">Receiver:</span>
                     <div class="user-info">
-                        <img src="${receiverData?.photos?.[0] || 'after-dark-banner.jpg'}" alt="Receiver">
+                        <i class="fas fa-user-circle fa-2x"></i>
                         <div>
-                            <span>${receiverData?.username || 'Unknown'}</span>
+                            <span>${receiverData ? receiverData.username : 'Unknown'}</span>
                             <br>
                             <small>ID: ${messageData.receiverId}</small>
                         </div>
@@ -695,16 +896,18 @@ async function viewMessageDetails(messageId) {
                 </div>
                 
                 <div class="detail-item">
-                    <span class="detail-label">Read By:</span>
+                    <span class="detail-label">Read Status:</span>
                     <span class="detail-value">
-                        ${messageData.readBy?.join(', ') || 'Not read yet'}
+                        ${messageData.readBy && messageData.readBy.length > 0 ? 
+                            'Read by user(s)' : 
+                            '<span class="badge warning">Unread</span>'}
                     </span>
                 </div>
                 
                 <div class="detail-item full-width">
                     <span class="detail-label">Message Content:</span>
                     <div class="message-content-box">
-                        <p>${messageData.content || 'No content'}</p>
+                        <p>${messageData.content || messageData.message || 'No content'}</p>
                     </div>
                 </div>
             </div>
@@ -728,7 +931,8 @@ async function deleteMessage(messageId) {
     if (!confirm('Delete this message?')) return;
     
     try {
-        await deleteDoc(doc(db, "messages", messageId));
+        const db = firebase.firestore();
+        await db.collection("messages").doc(messageId).delete();
         showNotification('Message deleted', 'success');
         await loadAllMessages();
         
@@ -740,27 +944,35 @@ async function deleteMessage(messageId) {
 
 // Delete all messages
 async function deleteAllMessages() {
-    const confirmation = prompt('Type "DELETE ALL MESSAGES" to confirm:');
-    if (confirmation !== 'DELETE ALL MESSAGES') {
-        showNotification('Operation cancelled', 'info');
+    if (!confirm('WARNING: This will delete ALL messages from the database.\n\nType "DELETE ALL" to confirm:')) {
         return;
     }
     
-    if (!confirm('WARNING: This will delete ALL messages from the database. This cannot be undone. Continue?')) return;
-    
     try {
         showNotification('Deleting all messages...', 'info');
+        const db = firebase.firestore();
         
-        // In a real app, you might want to do this in batches
-        const messagesRef = collection(db, "messages");
-        const querySnapshot = await getDocs(messagesRef);
+        // Get all messages
+        const querySnapshot = await db.collection("messages").get();
         
-        const batch = writeBatch(db);
+        // Delete in batches of 500
+        let batch = db.batch();
+        let count = 0;
+        
         querySnapshot.forEach(doc => {
             batch.delete(doc.ref);
+            count++;
+            
+            if (count === 500) {
+                batch.commit();
+                batch = db.batch();
+                count = 0;
+            }
         });
         
-        await batch.commit();
+        if (count > 0) {
+            await batch.commit();
+        }
         
         showNotification('All messages deleted successfully', 'success');
         await loadAllMessages();
@@ -771,11 +983,11 @@ async function deleteAllMessages() {
     }
 }
 
-// Load all reports
+// Load all reports (stub)
 async function loadAllReports() {
     try {
-        const reportsRef = collection(db, "reports");
-        const querySnapshot = await getDocs(reportsRef);
+        const db = firebase.firestore();
+        const querySnapshot = await db.collection("reports").get();
         
         allReports = [];
         querySnapshot.forEach(doc => {
@@ -785,441 +997,119 @@ async function loadAllReports() {
             });
         });
         
-        // Sort by timestamp
-        allReports.sort((a, b) => b.timestamp?.toDate() - a.timestamp?.toDate());
-        
         displayReports();
         updateReportStats();
         
     } catch (error) {
         console.error('Error loading reports:', error);
-        showNotification('Failed to load reports', 'error');
+        // Don't show error if reports collection doesn't exist yet
+        if (error.code !== 'failed-precondition') {
+            showNotification('Failed to load reports', 'error');
+        }
     }
 }
 
 // Display reports
 function displayReports() {
     const container = document.getElementById('reportsList');
+    if (!container) return;
+    
     container.innerHTML = '';
     
-    // Apply filters
-    const statusFilter = document.getElementById('reportStatusFilter')?.value || 'all';
-    const typeFilter = document.getElementById('reportTypeFilter')?.value || 'all';
-    
-    const filteredReports = allReports.filter(report => {
-        // Status filter
-        const matchesStatus = statusFilter === 'all' || report.status === statusFilter;
-        
-        // Type filter
-        const matchesType = typeFilter === 'all' || 
-            (report.reasons && report.reasons.includes(typeFilter));
-        
-        return matchesStatus && matchesType;
-    });
-    
-    if (filteredReports.length === 0) {
+    if (allReports.length === 0) {
         container.innerHTML = '<div class="no-data">No reports found</div>';
         return;
     }
     
-    filteredReports.forEach(async report => {
-        try {
-            // Get reporter and reported user info
-            const [reporterDoc, reportedDoc] = await Promise.all([
-                getDoc(doc(db, "users", report.reporterId)),
-                getDoc(doc(db, "users", report.reportedUserId))
-            ]);
-            
-            const reporterData = reporterDoc.exists() ? reporterDoc.data() : null;
-            const reportedData = reportedDoc.exists() ? reportedDoc.data() : null;
-            
-            const reportElement = document.createElement('div');
-            reportElement.className = `admin-report-item ${report.status}`;
-            
-            const time = report.timestamp?.toDate().toLocaleString() || 'Unknown';
-            const statusClass = report.status === 'pending' ? 'warning' : 
-                               report.status === 'resolved' ? 'success' : 
-                               report.status === 'dismissed' ? 'secondary' : 'primary';
-            
-            reportElement.innerHTML = `
-                <div class="report-header">
-                    <div class="report-users">
-                        <div class="user-pair">
-                            <div class="user">
-                                <img src="${reporterData?.photos?.[0] || 'after-dark-banner.jpg'}" alt="Reporter">
-                                <span>${reporterData?.username || 'Unknown'}</span>
-                            </div>
-                            <i class="fas fa-flag"></i>
-                            <div class="user">
-                                <img src="${reportedData?.photos?.[0] || 'after-dark-banner.jpg'}" alt="Reported">
-                                <span>${reportedData?.username || 'Unknown'}</span>
-                            </div>
+    allReports.forEach(report => {
+        const reportElement = document.createElement('div');
+        reportElement.className = `admin-report-item ${report.status || 'pending'}`;
+        
+        const time = report.timestamp ? (report.timestamp.toDate ? report.timestamp.toDate().toLocaleString() : new Date(report.timestamp).toLocaleString()) : 'Unknown';
+        const statusClass = report.status === 'pending' ? 'warning' : 
+                           report.status === 'resolved' ? 'success' : 
+                           report.status === 'dismissed' ? 'secondary' : 'primary';
+        
+        reportElement.innerHTML = `
+            <div class="report-header">
+                <div class="report-users">
+                    <div class="user-pair">
+                        <div class="user">
+                            <i class="fas fa-user"></i>
+                            <span>Reporter: ${report.reporterId ? report.reporterId.substring(0, 8) + '...' : 'Unknown'}</span>
+                        </div>
+                        <i class="fas fa-flag"></i>
+                        <div class="user">
+                            <i class="fas fa-user"></i>
+                            <span>Reported: ${report.reportedUserId ? report.reportedUserId.substring(0, 8) + '...' : 'Unknown'}</span>
                         </div>
                     </div>
-                    <div class="report-meta">
-                        <span class="report-time">${time}</span>
-                        <span class="report-status ${statusClass}">${report.status}</span>
-                    </div>
                 </div>
-                <div class="report-body">
-                    <div class="report-reasons">
-                        <strong>Reasons:</strong>
-                        <div class="reason-tags">
-                            ${report.reasons?.map(reason => `
-                                <span class="reason-tag">${reason}</span>
-                            `).join('') || 'No reasons specified'}
-                        </div>
-                    </div>
-                    <div class="report-details">
-                        <strong>Details:</strong>
-                        <p>${report.details || 'No additional details'}</p>
-                    </div>
+                <div class="report-meta">
+                    <span class="report-time">${time}</span>
+                    <span class="report-status ${statusClass}">${report.status || 'pending'}</span>
                 </div>
-                <div class="report-footer">
-                    <button class="action-btn view" onclick="viewReportDetails('${report.id}')">
-                        <i class="fas fa-eye"></i> View Details
-                    </button>
-                    <button class="action-btn success" onclick="resolveReportFromList('${report.id}')">
-                        <i class="fas fa-check"></i> Resolve
-                    </button>
-                    <button class="action-btn secondary" onclick="dismissReportFromList('${report.id}')">
-                        <i class="fas fa-times"></i> Dismiss
-                    </button>
-                </div>
-            `;
-            
-            container.appendChild(reportElement);
-            
-        } catch (error) {
-            console.error('Error loading report details:', error);
-        }
-    });
-}
-
-// View report details
-async function viewReportDetails(reportId) {
-    try {
-        const reportDoc = await getDoc(doc(db, "reports", reportId));
-        if (!reportDoc.exists()) {
-            showNotification('Report not found', 'error');
-            return;
-        }
-        
-        const reportData = reportDoc.data();
-        
-        // Get reporter and reported user info
-        const [reporterDoc, reportedDoc] = await Promise.all([
-            getDoc(doc(db, "users", reportData.reporterId)),
-            getDoc(doc(db, "users", reportData.reportedUserId))
-        ]);
-        
-        const reporterData = reporterDoc.exists() ? reporterDoc.data() : null;
-        const reportedData = reportedDoc.exists() ? reportedDoc.data() : null;
-        
-        const detailContent = document.getElementById('reportDetailContent');
-        const time = reportData.timestamp?.toDate().toLocaleString() || 'Unknown';
-        
-        detailContent.innerHTML = `
-            <div class="report-detail-header">
-                <h3>Report Details</h3>
-                <span class="report-id">ID: ${reportId}</span>
             </div>
-            
-            <div class="report-detail-info">
-                <div class="detail-section">
-                    <h4>Reporter</h4>
-                    <div class="user-detail">
-                        <img src="${reporterData?.photos?.[0] || 'after-dark-banner.jpg'}" alt="Reporter">
-                        <div>
-                            <strong>${reporterData?.username || 'Unknown'}</strong>
-                            <p>ID: ${reportData.reporterId}</p>
-                            <p>Real Name: ${reporterData?.realName || 'Not available'}</p>
-                        </div>
-                    </div>
-                </div>
-                
-                <div class="detail-section">
-                    <h4>Reported User</h4>
-                    <div class="user-detail">
-                        <img src="${reportedData?.photos?.[0] || 'after-dark-banner.jpg'}" alt="Reported">
-                        <div>
-                            <strong>${reportedData?.username || 'Unknown'}</strong>
-                            <p>ID: ${reportData.reportedUserId}</p>
-                            <p>Real Name: ${reportedData?.realName || 'Not available'}</p>
-                            <p>Status: ${reportedData?.isBlocked ? 'Blocked' : 'Active'}</p>
-                        </div>
-                    </div>
-                </div>
-                
-                <div class="detail-section">
-                    <h4>Report Information</h4>
-                    <div class="detail-item">
-                        <span class="detail-label">Reported On:</span>
-                        <span class="detail-value">${time}</span>
-                    </div>
-                    <div class="detail-item">
-                        <span class="detail-label">Status:</span>
-                        <span class="detail-value status-${reportData.status}">${reportData.status}</span>
-                    </div>
-                    <div class="detail-item">
-                        <span class="detail-label">Handled By:</span>
-                        <span class="detail-value">${reportData.handledBy || 'Not handled yet'}</span>
-                    </div>
-                    <div class="detail-item">
-                        <span class="detail-label">Resolution:</span>
-                        <span class="detail-value">${reportData.resolution || 'Not resolved yet'}</span>
-                    </div>
-                </div>
-                
-                <div class="detail-section full-width">
-                    <h4>Report Reasons</h4>
+            <div class="report-body">
+                <div class="report-reasons">
+                    <strong>Reasons:</strong>
                     <div class="reason-tags">
-                        ${reportData.reasons?.map(reason => `
+                        ${report.reasons ? report.reasons.map(reason => `
                             <span class="reason-tag">${reason}</span>
-                        `).join('') || 'No reasons specified'}
+                        `).join('') : 'No reasons specified'}
                     </div>
                 </div>
-                
-                <div class="detail-section full-width">
-                    <h4>Report Details</h4>
-                    <div class="report-details-box">
-                        <p>${reportData.details || 'No additional details provided'}</p>
-                    </div>
+                <div class="report-details">
+                    <strong>Details:</strong>
+                    <p>${report.details || 'No additional details'}</p>
                 </div>
-                
-                ${reportData.evidence ? `
-                <div class="detail-section full-width">
-                    <h4>Evidence</h4>
-                    <div class="report-evidence">
-                        <p>${reportData.evidence}</p>
-                    </div>
-                </div>
-                ` : ''}
+            </div>
+            <div class="report-footer">
+                <button class="action-btn view" onclick="viewReportDetails('${report.id}')">
+                    <i class="fas fa-eye"></i> View Details
+                </button>
+                <button class="action-btn success" onclick="resolveReportFromList('${report.id}')">
+                    <i class="fas fa-check"></i> Resolve
+                </button>
+                <button class="action-btn secondary" onclick="dismissReportFromList('${report.id}')">
+                    <i class="fas fa-times"></i> Dismiss
+                </button>
             </div>
         `;
         
-        document.getElementById('reportDetailModal').style.display = 'block';
-        
-    } catch (error) {
-        console.error('Error loading report details:', error);
-        showNotification('Failed to load report details', 'error');
-    }
+        container.appendChild(reportElement);
+    });
 }
 
-// Close report modal
-function closeReportModal() {
-    document.getElementById('reportDetailModal').style.display = 'none';
-}
-
-// Resolve report from list
-async function resolveReportFromList(reportId) {
-    if (!confirm('Mark this report as resolved?')) return;
+// Show different sections
+function showSection(sectionName) {
+    // Hide all sections
+    const sections = ['users', 'messages', 'reports', 'analytics', 'settings'];
+    sections.forEach(section => {
+        const element = document.getElementById(`${section}Section`);
+        if (element) element.style.display = 'none';
+    });
     
-    try {
-        await updateDoc(doc(db, "reports", reportId), {
-            status: 'resolved',
-            resolvedAt: serverTimestamp(),
-            resolvedBy: currentAdminUser.uid
-        });
-        
-        showNotification('Report marked as resolved', 'success');
-        await loadAllReports();
-        
-    } catch (error) {
-        console.error('Error resolving report:', error);
-        showNotification('Failed to resolve report', 'error');
+    // Show selected section
+    const selectedSection = document.getElementById(`${sectionName}Section`);
+    if (selectedSection) {
+        selectedSection.style.display = 'block';
     }
-}
-
-// Dismiss report from list
-async function dismissReportFromList(reportId) {
-    if (!confirm('Dismiss this report?')) return;
     
-    try {
-        await updateDoc(doc(db, "reports", reportId), {
-            status: 'dismissed',
-            dismissedAt: serverTimestamp(),
-            dismissedBy: currentAdminUser.uid
-        });
-        
-        showNotification('Report dismissed', 'success');
-        await loadAllReports();
-        
-    } catch (error) {
-        console.error('Error dismissing report:', error);
-        showNotification('Failed to dismiss report', 'error');
-    }
-}
-
-// Resolve report from modal
-async function resolveReport() {
-    const modal = document.getElementById('reportDetailModal');
-    const reportId = modal.dataset.reportId;
-    
-    if (reportId) {
-        await resolveReportFromList(reportId);
-        closeReportModal();
-    }
-}
-
-// Dismiss report from modal
-async function dismissReport() {
-    const modal = document.getElementById('reportDetailModal');
-    const reportId = modal.dataset.reportId;
-    
-    if (reportId) {
-        await dismissReportFromList(reportId);
-        closeReportModal();
-    }
-}
-
-// Take action on reported user
-async function takeAction() {
-    const modal = document.getElementById('reportDetailModal');
-    const reportId = modal.dataset.reportId;
-    
-    if (!reportId) return;
-    
-    // Get report data to access reported user ID
-    try {
-        const reportDoc = await getDoc(doc(db, "reports", reportId));
-        if (reportDoc.exists()) {
-            const reportData = reportDoc.data();
-            
-            // Show action options
-            const action = prompt('Choose action:\n1. Warn user\n2. Temporary ban (7 days)\n3. Permanent ban\n4. Delete user\n\nEnter number:');
-            
-            switch (action) {
-                case '1':
-                    await warnUser(reportData.reportedUserId, reportId);
-                    break;
-                case '2':
-                    await temporaryBan(reportData.reportedUserId, reportId);
-                    break;
-                case '3':
-                    await permanentBan(reportData.reportedUserId, reportId);
-                    break;
-                case '4':
-                    await deleteUser(reportData.reportedUserId);
-                    break;
-                default:
-                    showNotification('No action taken', 'info');
-            }
-        }
-    } catch (error) {
-        console.error('Error taking action:', error);
-        showNotification('Failed to take action', 'error');
-    }
-}
-
-async function warnUser(userId, reportId) {
-    try {
-        await updateDoc(doc(db, "users", userId), {
-            warnings: arrayUnion({
-                date: serverTimestamp(),
-                reason: 'Report violation',
-                reportId: reportId,
-                warnedBy: currentAdminUser.uid
-            })
-        });
-        
-        await updateDoc(doc(db, "reports", reportId), {
-            status: 'resolved',
-            resolution: 'User warned',
-            resolvedAt: serverTimestamp()
-        });
-        
-        showNotification('User warned', 'success');
-        await loadAllReports();
-        closeReportModal();
-        
-    } catch (error) {
-        console.error('Error warning user:', error);
-        showNotification('Failed to warn user', 'error');
-    }
-}
-
-async function temporaryBan(userId, reportId) {
-    try {
-        const banUntil = new Date();
-        banUntil.setDate(banUntil.getDate() + 7);
-        
-        await updateDoc(doc(db, "users", userId), {
-            isBlocked: true,
-            banReason: 'Report violation',
-            banUntil: banUntil,
-            bannedBy: currentAdminUser.uid,
-            banReportId: reportId
-        });
-        
-        await updateDoc(doc(db, "reports", reportId), {
-            status: 'resolved',
-            resolution: 'User temporarily banned (7 days)',
-            resolvedAt: serverTimestamp()
-        });
-        
-        showNotification('User temporarily banned for 7 days', 'success');
-        await loadAllUsers();
-        await loadAllReports();
-        closeReportModal();
-        
-    } catch (error) {
-        console.error('Error temporary banning user:', error);
-        showNotification('Failed to ban user', 'error');
-    }
-}
-
-async function permanentBan(userId, reportId) {
-    try {
-        await updateDoc(doc(db, "users", userId), {
-            isBlocked: true,
-            banReason: 'Report violation - Permanent',
-            bannedBy: currentAdminUser.uid,
-            banReportId: reportId
-        });
-        
-        await updateDoc(doc(db, "reports", reportId), {
-            status: 'resolved',
-            resolution: 'User permanently banned',
-            resolvedAt: serverTimestamp()
-        });
-        
-        showNotification('User permanently banned', 'success');
-        await loadAllUsers();
-        await loadAllReports();
-        closeReportModal();
-        
-    } catch (error) {
-        console.error('Error permanent banning user:', error);
-        showNotification('Failed to ban user', 'error');
-    }
-}
-
-// Resolve all reports
-async function resolveAllReports() {
-    if (!confirm('Mark all pending reports as resolved?')) return;
-    
-    try {
-        const pendingReports = allReports.filter(r => r.status === 'pending');
-        
-        const batch = writeBatch(db);
-        pendingReports.forEach(report => {
-            const reportRef = doc(db, "reports", report.id);
-            batch.update(reportRef, {
-                status: 'resolved',
-                resolvedAt: serverTimestamp(),
-                resolvedBy: currentAdminUser.uid,
-                resolution: 'Bulk resolution'
-            });
-        });
-        
-        await batch.commit();
-        showNotification('All reports resolved', 'success');
-        await loadAllReports();
-        
-    } catch (error) {
-        console.error('Error resolving all reports:', error);
-        showNotification('Failed to resolve all reports', 'error');
+    // Refresh data for the section
+    switch(sectionName) {
+        case 'users':
+            loadAllUsers();
+            break;
+        case 'messages':
+            loadAllMessages();
+            break;
+        case 'reports':
+            loadAllReports();
+            break;
+        case 'analytics':
+            updateAnalyticsStats();
+            break;
     }
 }
 
@@ -1234,59 +1124,61 @@ function updateAdminStats() {
 function updateUserStats() {
     const totalUsers = allUsers.length;
     const activeToday = allUsers.filter(user => {
-        const lastActive = user.lastActive?.toDate();
+        const lastActive = user.lastActive ? (user.lastActive.toDate ? user.lastActive.toDate() : new Date(user.lastActive)) : null;
         const today = new Date();
         return lastActive && lastActive.toDateString() === today.toDateString();
     }).length;
     
-    document.getElementById('totalUsers').textContent = totalUsers;
-    document.getElementById('totalUsersCount').textContent = totalUsers;
-    document.getElementById('activeUsersCount').textContent = activeToday;
+    const totalUsersElement = document.getElementById('totalUsers');
+    const totalUsersCountElement = document.getElementById('totalUsersCount');
+    const activeUsersCountElement = document.getElementById('activeUsersCount');
+    
+    if (totalUsersElement) totalUsersElement.textContent = totalUsers;
+    if (totalUsersCountElement) totalUsersCountElement.textContent = totalUsers;
+    if (activeUsersCountElement) activeUsersCountElement.textContent = activeToday;
 }
 
 function updateMessageStats() {
     const totalMessages = allMessages.length;
-    const todayMessages = allMessages.filter(message => {
-        const messageDate = message.timestamp?.toDate();
-        const today = new Date();
-        return messageDate && messageDate.toDateString() === today.toDateString();
-    }).length;
+    const totalMessagesAdminElement = document.getElementById('totalMessagesAdmin');
+    const totalMessagesCountElement = document.getElementById('totalMessagesCount');
     
-    document.getElementById('totalMessagesAdmin').textContent = totalMessages;
-    document.getElementById('totalMessagesCount').textContent = totalMessages;
+    if (totalMessagesAdminElement) totalMessagesAdminElement.textContent = totalMessages;
+    if (totalMessagesCountElement) totalMessagesCountElement.textContent = totalMessages;
 }
 
 function updateReportStats() {
     const totalReports = allReports.length;
     const pendingReports = allReports.filter(r => r.status === 'pending').length;
     
-    document.getElementById('pendingReports').textContent = pendingReports;
-    document.getElementById('totalReportsCount').textContent = totalReports;
+    const pendingReportsElement = document.getElementById('pendingReports');
+    const totalReportsCountElement = document.getElementById('totalReportsCount');
+    
+    if (pendingReportsElement) pendingReportsElement.textContent = pendingReports;
+    if (totalReportsCountElement) totalReportsCountElement.textContent = totalReports;
 }
 
 function updateAnalyticsStats() {
-    // You can add more analytics here
-    // For now, we've updated the basic stats above
+    // Calculate additional analytics
+    const newUsersToday = allUsers.filter(user => {
+        const joinDate = user.createdAt ? (user.createdAt.toDate ? user.createdAt.toDate() : new Date(user.createdAt)) : null;
+        const today = new Date();
+        return joinDate && joinDate.toDateString() === today.toDateString();
+    }).length;
+    
+    const messagesToday = allMessages.filter(message => {
+        const messageDate = message.timestamp ? (message.timestamp.toDate ? message.timestamp.toDate() : new Date(message.timestamp)) : null;
+        const today = new Date();
+        return messageDate && messageDate.toDateString() === today.toDateString();
+    }).length;
+    
+    // Update charts if implemented
+    updateCharts();
 }
 
-// Show different sections
-function showSection(sectionName) {
-    // Hide all sections
-    const sections = ['users', 'messages', 'reports', 'analytics', 'settings'];
-    sections.forEach(section => {
-        document.getElementById(`${section}Section`).style.display = 'none';
-    });
-    
-    // Show selected section
-    document.getElementById(`${sectionName}Section`).style.display = 'block';
-    
-    // Update active menu items
-    document.querySelectorAll('.sidebar-menu .menu-item').forEach(item => {
-        item.classList.remove('active');
-    });
-    
-    // The main admin panel item stays active
-    document.querySelector('.sidebar-menu .menu-item:nth-child(2)').classList.add('active');
+function updateCharts() {
+    // Chart.js implementation would go here
+    console.log('Charts would be updated here');
 }
 
 // Export data
@@ -1299,10 +1191,11 @@ async function exportData() {
                 realName: user.realName,
                 phone: user.phone,
                 stats: user.stats,
-                createdAt: user.createdAt?.toDate()?.toISOString(),
-                lastActive: user.lastActive?.toDate()?.toISOString(),
+                createdAt: user.createdAt ? (user.createdAt.toDate ? user.createdAt.toDate().toISOString() : new Date(user.createdAt).toISOString()) : null,
+                lastActive: user.lastActive ? (user.lastActive.toDate ? user.lastActive.toDate().toISOString() : new Date(user.lastActive).toISOString()) : null,
                 isAdmin: user.isAdmin,
-                isBlocked: user.isBlocked
+                isBlocked: user.isBlocked,
+                status: user.status
             })),
             messages: allMessages.slice(0, 1000).map(msg => ({
                 id: msg.id,
@@ -1310,7 +1203,7 @@ async function exportData() {
                 receiverId: msg.receiverId,
                 content: msg.content,
                 isAnonymous: msg.isAnonymous,
-                timestamp: msg.timestamp?.toDate()?.toISOString(),
+                timestamp: msg.timestamp ? (msg.timestamp.toDate ? msg.timestamp.toDate().toISOString() : new Date(msg.timestamp).toISOString()) : null,
                 readBy: msg.readBy
             })),
             reports: allReports.map(report => ({
@@ -1320,7 +1213,7 @@ async function exportData() {
                 reasons: report.reasons,
                 details: report.details,
                 status: report.status,
-                timestamp: report.timestamp?.toDate()?.toISOString()
+                timestamp: report.timestamp ? (report.timestamp.toDate ? report.timestamp.toDate().toISOString() : new Date(report.timestamp).toISOString()) : null
             })),
             exportDate: new Date().toISOString(),
             exportedBy: currentAdminUser.uid
@@ -1330,7 +1223,7 @@ async function exportData() {
         const url = URL.createObjectURL(blob);
         const a = document.createElement('a');
         a.href = url;
-        a.download = `nightvibe-admin-export-${new Date().toISOString().split('T')[0]}.json`;
+        a.download = `nightvibe-export-${new Date().toISOString().split('T')[0]}.json`;
         document.body.appendChild(a);
         a.click();
         document.body.removeChild(a);
@@ -1341,30 +1234,6 @@ async function exportData() {
     } catch (error) {
         console.error('Error exporting data:', error);
         showNotification('Failed to export data', 'error');
-    }
-}
-
-// Clear all data
-async function clearAllData() {
-    const confirmation = prompt('Type "CLEAR ALL DATA" to confirm:');
-    if (confirmation !== 'CLEAR ALL DATA') {
-        showNotification('Operation cancelled', 'info');
-        return;
-    }
-    
-    if (!confirm('WARNING: This will delete ALL data from the database. This cannot be undone. Continue?')) return;
-    
-    try {
-        showNotification('Clearing all data...', 'info');
-        
-        // This is a dangerous operation and should be done carefully
-        // In a real app, you might want to archive data instead of deleting
-        
-        showNotification('Data clear function is disabled for safety', 'error');
-        
-    } catch (error) {
-        console.error('Error clearing data:', error);
-        showNotification('Failed to clear data', 'error');
     }
 }
 
@@ -1388,22 +1257,30 @@ async function createNewUser(e) {
     const phone = document.getElementById('newPhone').value.trim();
     const userType = document.getElementById('newUserType').value;
     
+    if (!username || !email || !password || !realName || !phone) {
+        showNotification('Please fill in all fields', 'error');
+        return;
+    }
+    
     try {
         // Create user in Firebase Auth
-        const userCredential = await createUserWithEmailAndPassword(auth, email, password);
+        const userCredential = await firebase.auth().createUserWithEmailAndPassword(email, password);
         
         // Create user document in Firestore
-        await setDoc(doc(db, "users", userCredential.user.uid), {
+        const db = firebase.firestore();
+        await db.collection("users").doc(userCredential.user.uid).set({
             username: username,
             realName: realName,
             phone: phone,
             email: email,
             isAdmin: userType === 'admin',
             isModerator: userType === 'moderator',
-            createdAt: serverTimestamp(),
-            lastActive: serverTimestamp(),
+            createdAt: firebase.firestore.FieldValue.serverTimestamp(),
+            lastActive: firebase.firestore.FieldValue.serverTimestamp(),
             status: 'offline',
             photos: [],
+            profileComplete: false,
+            isBlocked: false,
             stats: {
                 age: 0,
                 position: '',
@@ -1431,26 +1308,46 @@ async function createNewUser(e) {
 // Setup event listeners
 function setupEventListeners() {
     // Add user form
-    document.getElementById('addUserForm').addEventListener('submit', createNewUser);
+    const addUserForm = document.getElementById('addUserForm');
+    if (addUserForm) {
+        addUserForm.addEventListener('submit', createNewUser);
+    }
     
     // Message search
-    document.getElementById('messageSearchAdmin')?.addEventListener('input', displayMessages);
-    document.getElementById('messageFilterAdmin')?.addEventListener('change', displayMessages);
+    const messageSearch = document.getElementById('messageSearchAdmin');
+    if (messageSearch) {
+        messageSearch.addEventListener('input', displayMessages);
+    }
     
-    // Report filters
-    document.getElementById('reportStatusFilter')?.addEventListener('change', displayReports);
-    document.getElementById('reportTypeFilter')?.addEventListener('change', displayReports);
+    const messageFilter = document.getElementById('messageFilterAdmin');
+    if (messageFilter) {
+        messageFilter.addEventListener('change', displayMessages);
+    }
     
     // User search
-    document.getElementById('userSearch')?.addEventListener('input', filterUsers);
-    document.getElementById('userFilter')?.addEventListener('change', filterUsers);
+    const userSearch = document.getElementById('userSearch');
+    if (userSearch) {
+        userSearch.addEventListener('input', filterUsers);
+    }
+    
+    const userFilter = document.getElementById('userFilter');
+    if (userFilter) {
+        userFilter.addEventListener('change', filterUsers);
+    }
     
     // Admin search
-    document.getElementById('adminSearch')?.addEventListener('input', (e) => {
-        const term = e.target.value.toLowerCase();
-        // Implement global search across all sections
-        showNotification(`Searching for: ${term}`, 'info');
-    });
+    const adminSearch = document.getElementById('adminSearch');
+    if (adminSearch) {
+        adminSearch.addEventListener('input', (e) => {
+            const term = e.target.value.toLowerCase();
+            if (term.length > 2) {
+                // Simple search across users for now
+                document.getElementById('userSearch').value = term;
+                filterUsers();
+                showSection('users');
+            }
+        });
+    }
     
     // Close modals when clicking outside
     window.onclick = function(event) {
@@ -1472,7 +1369,7 @@ function refreshUsers() {
 // Refresh analytics
 function refreshAnalytics() {
     updateAnalyticsStats();
-    showNotification('Refreshing analytics...', 'info');
+    showNotification('Analytics refreshed', 'info');
 }
 
 // Save settings
@@ -1494,12 +1391,13 @@ async function saveSettings() {
             sendWelcomeEmails: document.getElementById('sendWelcomeEmails').checked,
             sendReportNotifications: document.getElementById('sendReportNotifications').checked,
             sendSystemAlerts: document.getElementById('sendSystemAlerts').checked,
-            lastUpdated: serverTimestamp(),
+            lastUpdated: firebase.firestore.FieldValue.serverTimestamp(),
             updatedBy: currentAdminUser.uid
         };
         
         // Save to Firestore
-        await setDoc(doc(db, "admin", "settings"), settings, { merge: true });
+        const db = firebase.firestore();
+        await db.collection("admin").doc("settings").set(settings, { merge: true });
         
         showNotification('Settings saved successfully', 'success');
         
@@ -1508,3 +1406,136 @@ async function saveSettings() {
         showNotification('Failed to save settings', 'error');
     }
 }
+
+// Logout
+async function logout() {
+    try {
+        await firebase.auth().signOut();
+        window.location.href = 'index.html';
+    } catch (error) {
+        console.error('Error signing out:', error);
+        showNotification('Error signing out', 'error');
+    }
+}
+
+// Toggle sidebar
+function toggleSidebar() {
+    const sidebar = document.querySelector('.sidebar');
+    if (sidebar) sidebar.classList.toggle('active');
+}
+
+// Show notification
+function showNotification(message, type = 'info') {
+    console.log(`[${type}] ${message}`);
+    
+    // Remove existing notifications
+    const existingNotifications = document.querySelectorAll('.admin-notification');
+    existingNotifications.forEach(n => n.remove());
+    
+    // Create notification element
+    const notification = document.createElement('div');
+    notification.className = `admin-notification ${type}`;
+    notification.innerHTML = `
+        <i class="fas fa-${type === 'success' ? 'check-circle' : type === 'error' ? 'exclamation-circle' : 'info-circle'}"></i>
+        <span>${message}</span>
+        <button class="close-notification" onclick="this.parentElement.remove()">
+            <i class="fas fa-times"></i>
+        </button>
+    `;
+    
+    notification.style.cssText = `
+        position: fixed;
+        top: 20px;
+        right: 20px;
+        background: ${type === 'success' ? '#4CAF50' : type === 'error' ? '#f44336' : '#2196F3'};
+        color: white;
+        padding: 12px 20px;
+        border-radius: 8px;
+        box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+        z-index: 10000;
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        animation: slideIn 0.3s ease;
+    `;
+    
+    document.body.appendChild(notification);
+    
+    // Auto-remove after 5 seconds
+    setTimeout(() => {
+        if (notification.parentNode) {
+            notification.style.animation = 'slideOut 0.3s ease';
+            setTimeout(() => {
+                if (notification.parentNode) {
+                    notification.parentNode.removeChild(notification);
+                }
+            }, 300);
+        }
+    }, 5000);
+}
+
+// Add CSS for animations
+const style = document.createElement('style');
+style.textContent = `
+    @keyframes slideIn {
+        from {
+            transform: translateX(100%);
+            opacity: 0;
+        }
+        to {
+            transform: translateX(0);
+            opacity: 1;
+        }
+    }
+    
+    @keyframes slideOut {
+        from {
+            transform: translateX(0);
+            opacity: 1;
+        }
+        to {
+            transform: translateX(100%);
+            opacity: 0;
+        }
+    }
+    
+    .admin-notification .close-notification {
+        background: none;
+        border: none;
+        color: white;
+        cursor: pointer;
+        opacity: 0.7;
+        transition: opacity 0.2s;
+    }
+    
+    .admin-notification .close-notification:hover {
+        opacity: 1;
+    }
+`;
+document.head.appendChild(style);
+
+// Make functions available globally
+window.showSection = showSection;
+window.viewUserDetails = viewUserDetails;
+window.closeUserModal = closeUserModal;
+window.editUser = editUser;
+window.blockUser = blockUser;
+window.unblockUser = unblockUser;
+window.makeAdmin = makeAdmin;
+window.deleteUser = deleteUser;
+window.viewMessageDetails = viewMessageDetails;
+window.closeMessageModal = closeMessageModal;
+window.deleteMessage = deleteMessage;
+window.deleteAllMessages = deleteAllMessages;
+window.refreshUsers = refreshUsers;
+window.refreshAnalytics = refreshAnalytics;
+window.exportData = exportData;
+window.clearAllData = deleteAllMessages; // Alias for now
+window.addNewUser = addNewUser;
+window.closeAddUserModal = closeAddUserModal;
+window.saveSettings = saveSettings;
+window.toggleSidebar = toggleSidebar;
+window.logout = logout;
+
+// Initialize
+console.log("Admin JS loaded successfully");

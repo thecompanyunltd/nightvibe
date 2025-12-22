@@ -165,6 +165,54 @@
         from { transform: translateX(100%); opacity: 0; }
         to { transform: translateX(0); opacity: 1; }
     }
+
+    /* Responsive profile adjustments */
+    @media (max-width: 768px) {
+        .profile-cover {
+            height: 120px;
+            margin-bottom: 70px;
+            border-radius: 8px;
+        }
+
+        .profile-avatar-section {
+            flex-direction: column;
+            align-items: center;
+            margin-top: -40px;
+            padding-left: 0;
+        }
+
+        .profile-avatar {
+            width: 100px;
+            height: 100px;
+            border-width: 4px;
+        }
+
+        .profile-name-section {
+            margin-left: 0;
+            text-align: center;
+            margin-top: 10px;
+        }
+
+        .profile-main-content {
+            display: block;
+        }
+
+        .photos-grid {
+            grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+        }
+
+        .profile-stats-cards {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 10px;
+        }
+    }
+
+    @media (max-width: 480px) {
+        .profile-avatar { width: 90px; height: 90px; }
+        .profile-cover { height: 100px; margin-bottom: 60px; }
+        .profile-stats-cards { grid-template-columns: 1fr; }
+    }
     </style>
 
 </head>
